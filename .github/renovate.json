@@ -1,0 +1,32 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": ["config:recommended", ":semanticCommits"],
+	"schedule": ["before 6am on monday"],
+	"packageRules": [
+		{
+			"groupName": "elastic stack",
+			"matchPackageNames": [
+				"docker.elastic.co/elasticsearch/elasticsearch",
+				"docker.elastic.co/kibana/kibana"
+			]
+		},
+		{
+			"groupName": "github actions",
+			"matchManagers": ["github-actions"],
+			"matchUpdateTypes": ["minor", "patch"]
+		},
+		{
+			"groupName": "opentelemetry go",
+			"matchPackageNames": ["go.opentelemetry.io/**"]
+		}
+	],
+	"customManagers": [
+		{
+			"customType": "regex",
+			"managerFilePatterns": ["/^deploy/k8s/(elasticsearch|kibana)\\.yaml$/"],
+			"matchStrings": ["\\n  version: (?<currentValue>\\S+)"],
+			"datasourceTemplate": "docker",
+			"depNameTemplate": "docker.elastic.co/elasticsearch/elasticsearch"
+		}
+	]
+}
