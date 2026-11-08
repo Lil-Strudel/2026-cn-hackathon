@@ -26,3 +26,19 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: elasticsearch-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      elasticsearch.k8s.elastic.co/cluster-name: cnh
+  egress:
+    - toFQDNs:
+        - matchName: ml-models.elastic.co
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
