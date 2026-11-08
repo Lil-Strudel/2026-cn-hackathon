@@ -1,0 +1,39 @@
+{
+	"name": "@cnh/web",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite --port 4000",
+		"build": "vite build",
+		"preview": "vite preview --port 4000",
+		"typecheck": "tsr generate && tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@dash0/sdk-web": "catalog:",
+		"@tanstack/react-query": "catalog:",
+		"@tanstack/react-router": "catalog:",
+		"class-variance-authority": "catalog:",
+		"clsx": "catalog:",
+		"lucide-react": "catalog:",
+		"radix-ui": "catalog:",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"tailwind-merge": "catalog:"
+	},
+	"devDependencies": {
+		"@tailwindcss/vite": "catalog:",
+		"@tanstack/router-cli": "^1.168.0",
+		"@tanstack/router-plugin": "catalog:",
+		"@testing-library/react": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"@vitejs/plugin-react": "catalog:",
+		"jsdom": "catalog:",
+		"tailwindcss": "catalog:",
+		"tw-animate-css": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	}
+}

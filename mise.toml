@@ -1,0 +1,9 @@
+[tools]
+go = "1.27.3"
+node = "26.13.0"
+pnpm = "12.18.0"
+golangci-lint = "2.15.0"
+air = "1.67.4"
+kustomize = "5.8.3"
+kubeconform = "0.8.0"
+"github:skyhook-io/radar" = { version = "1.20.1", bin = "kubectl-radar" }

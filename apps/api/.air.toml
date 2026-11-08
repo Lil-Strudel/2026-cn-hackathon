@@ -1,0 +1,13 @@
+root = "."
+tmp_dir = "tmp/api"
+
+[build]
+cmd = "go build -o ./tmp/api/main ./apps/api"
+entrypoint = ["./tmp/api/main"]
+include_dir = ["apps/api", "internal"]
+include_ext = ["go"]
+exclude_regex = ["_test\\.go"]
+delay = 200
+
+[log]
+main_only = true

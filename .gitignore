@@ -1,0 +1,11 @@
+node_modules/
+dist/
+tmp/
+coverage/
+*.local
+.env
+.env.*
+!.env.example
+.DS_Store
+.dekit/
+routeTree.gen.ts

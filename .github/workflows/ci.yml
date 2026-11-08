@@ -1,0 +1,205 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io/lil-strudel/2026-cn-hackathon
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      go: ${{ steps.filter.outputs.go }}
+      manifests: ${{ steps.filter.outputs.manifests }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            web:
+              - apps/web/**
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+              - biome.json
+              - tsconfig.base.json
+              - mise.toml
+            go:
+              - "**/*.go"
+              - go.mod
+              - go.sum
+              - .golangci.yml
+              - mise.toml
+            manifests:
+              - deploy/**
+              - mise.toml
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: node pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec biome ci
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: go golangci-lint
+      - run: golangci-lint run ./...
+      - run: go test -race ./...
+
+  manifests:
+    needs: changes
+    if: needs.changes.outputs.manifests == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: kustomize kubeconform
+      - run: |
+          kustomize build deploy/k8s | kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+  images:
+    needs: [web, go, manifests]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: .
+            file: apps/go.Dockerfile
+            build-args: APP=api
+          - name: fanout
+            context: .
+            file: apps/go.Dockerfile
+            build-args: APP=fanout
+          - name: web
+            context: .
+            file: apps/web/Dockerfile
+          - name: elasticsearch
+            context: infra/elasticsearch
+            file: infra/elasticsearch/Dockerfile
+    env:
+      PUSH: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.8.0
+        if: env.PUSH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6.2.0
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ matrix.name }}
+          tags: |
+            type=sha,format=long,prefix=sha-
+            type=raw,value=main,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v7.4.0
+        id: build
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-args: |
+            ${{ matrix.build-args }}
+            VITE_DASH0_ENDPOINT=${{ vars.DASH0_OTLP_HTTP_ENDPOINT }}
+            VITE_DASH0_DATASET=${{ vars.DASH0_DATASET }}
+          secrets: |
+            VITE_DASH0_AUTH_TOKEN=${{ secrets.DASH0_WEB_AUTH_TOKEN }}
+          push: ${{ env.PUSH }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: ${{ env.PUSH == 'true' && 'mode=max' || 'false' }}
+          sbom: ${{ env.PUSH }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - uses: sigstore/cosign-installer@v4.1.3
+        if: env.PUSH == 'true'
+      - if: env.PUSH == 'true'
+        run: cosign sign --yes "${REGISTRY}/${{ matrix.name }}@${{ steps.build.outputs.digest }}"
+
+  deploy:
+    needs: images
+    if: github.event_name == 'push' && needs.images.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: homelab
+      url: ${{ vars.PUBLIC_URL }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: kustomize
+      - uses: fluxcd/flux2/action@v2.10.0
+      - uses: sigstore/cosign-installer@v4.1.3
+      - uses: docker/login-action@v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pin images to this commit
+        working-directory: deploy/k8s
+        run: |
+          for image in api fanout web elasticsearch; do
+            kustomize edit set image "${image}=${REGISTRY}/${image}:sha-${GITHUB_SHA}"
+          done
+      - name: Push signed manifests
+        run: |
+          artifact="oci://${REGISTRY}/manifests"
+          digest=$(flux push artifact "${artifact}:sha-${GITHUB_SHA}" \
+            --path=deploy/k8s \
+            --source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --revision="${GITHUB_REF_NAME}@sha1:${GITHUB_SHA}" \
+            --output=json | jq -r .digest)
+          cosign sign --yes "${REGISTRY}/manifests@${digest}"
+          flux tag artifact "${artifact}:sha-${GITHUB_SHA}" --tag main
+
+  ci-ok:
+    needs: [changes, web, go, manifests, images]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

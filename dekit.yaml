@@ -1,0 +1,35 @@
+tasks:
+  infra/:
+    collapsed: true
+  infra/elasticsearch:
+    cmd: docker compose up --build elasticsearch
+    ready:
+      {
+        http: "http://localhost:9200/_cluster/health?wait_for_status=yellow",
+        interval: 2s,
+        timeout: 3m,
+      }
+    autostart: true
+  infra/redis:
+    cmd: docker compose up redis
+    ready: { tcp: 6379 }
+    autostart: true
+  infra/kibana:
+    cmd: docker compose --profile kibana up kibana
+    deps: [infra/elasticsearch]
+    ready:
+      { http: "http://localhost:5601/api/status", interval: 2s, timeout: 3m }
+  api:
+    cmd: air -c apps/api/.air.toml
+    deps: [infra/elasticsearch, infra/redis]
+    ready: { http: "http://localhost:4100/healthz" }
+    autostart: true
+  fanout:
+    cmd: air -c apps/fanout/.air.toml
+    deps: [infra/redis]
+    ready: { http: "http://localhost:4200/healthz" }
+    autostart: true
+  web:
+    cmd: pnpm --filter @cnh/web dev
+    ready: { http: "http://localhost:4000" }
+    autostart: true

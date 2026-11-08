@@ -1,0 +1,25 @@
+{
+	"name": "@cnh/root",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@12.18.0",
+	"scripts": {
+		"dev": "dekit up && dekit attach",
+		"dev:down": "dekit down",
+		"dev:web": "pnpm --filter @cnh/web dev",
+		"dev:api": "pnpm --filter @cnh/api dev",
+		"dev:fanout": "pnpm --filter @cnh/fanout dev",
+		"check": "biome check",
+		"check:fix": "biome check --write",
+		"typecheck": "pnpm --filter '*' typecheck",
+		"test": "pnpm --filter '*' test",
+		"build": "pnpm --filter '*' build",
+		"services:up": "docker compose up -d --wait",
+		"services:down": "docker compose down",
+		"services:reset": "docker compose down -v && docker compose up -d --wait"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "catalog:",
+		"@dekit/cli": "catalog:"
+	}
+}

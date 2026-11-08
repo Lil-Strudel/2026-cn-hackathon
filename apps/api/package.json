@@ -1,0 +1,7 @@
+{
+	"name": "@cnh/api",
+	"private": true,
+	"scripts": {
+		"dev": "cd ../.. && air -c apps/api/.air.toml"
+	}
+}
