@@ -15,7 +15,6 @@
 		"@tanstack/react-router": "catalog:",
 		"class-variance-authority": "catalog:",
 		"clsx": "catalog:",
-		"cn": "^0.5.2",
 		"lucide-react": "catalog:",
 		"radix-ui": "catalog:",
 		"react": "catalog:",

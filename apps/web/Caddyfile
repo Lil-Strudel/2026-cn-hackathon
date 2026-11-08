@@ -10,7 +10,8 @@
 
 	@immutable path /assets/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
-	header /index.html Cache-Control "no-store"
+	@mutable not path /assets/*
+	header @mutable Cache-Control "no-store"
 
 	handle /healthz {
 		respond 204

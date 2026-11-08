@@ -42,8 +42,13 @@ func New(checks map[string]ReadinessCheck) *http.ServeMux {
 }
 
 // Run serves handler on addr until ctx is cancelled, then drains in-flight
-// requests. Health probes are left out of tracing to keep traces about users.
+// requests. Request contexts outlive ctx so the drain can finish, and are
+// cancelled only once it ends. Health probes are left out of tracing to keep
+// traces about users.
 func Run(ctx context.Context, addr string, handler http.Handler) error {
+	requestCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelRequests()
+
 	server := &http.Server{
 		Addr: addr,
 		Handler: otelhttp.NewHandler(handler, "http.server",
@@ -58,7 +63,7 @@ func Run(ctx context.Context, addr string, handler http.Handler) error {
 			}),
 		),
 		ReadHeaderTimeout: 5 * time.Second,
-		BaseContext:       func(net.Listener) context.Context { return ctx },
+		BaseContext:       func(net.Listener) context.Context { return requestCtx },
 	}
 
 	errs := make(chan error, 1)

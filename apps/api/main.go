@@ -38,16 +38,16 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	cfg, err := config.Load[Config]()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+
 	shutdown, err := telemetry.Setup(ctx, "api")
 	if err != nil {
 		return fmt.Errorf("telemetry: %w", err)
 	}
 	defer func() { _ = shutdown(context.Background()) }()
-
-	cfg, err := config.Load[Config]()
-	if err != nil {
-		return fmt.Errorf("config: %w", err)
-	}
 
 	rdb, err := newRedis(cfg.RedisURL)
 	if err != nil {
