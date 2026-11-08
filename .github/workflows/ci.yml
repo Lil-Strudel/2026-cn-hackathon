@@ -158,7 +158,7 @@ jobs:
 
   deploy:
     needs: images
-    if: github.event_name == 'push' && needs.images.result == 'success'
+    if: ${{ !failure() && !cancelled() && github.event_name == 'push' && needs.images.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: homelab
