@@ -16,6 +16,7 @@ const (
 	maxCorrectionBytes = 2000
 	maxNewTerms        = 50
 	maxTermBytes       = 64
+	maxContextWords    = 10
 )
 
 func handleCorrect(vocab *search.Vocabulary) http.HandlerFunc {
@@ -44,15 +45,16 @@ func handleCorrect(vocab *search.Vocabulary) http.HandlerFunc {
 func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Terms []string `json:"terms"`
+			Terms []search.Term `json:"terms"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxNewTerms*maxTermBytes*2)).Decode(&req); err != nil {
+		maxBody := maxNewTerms * (maxContextWords + 1) * maxTermBytes * 2
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, int64(maxBody))).Decode(&req); err != nil {
 			http.Error(w, "invalid JSON body", http.StatusBadRequest)
 			return
 		}
-		var terms []string
+		var terms []search.Term
 		for _, t := range req.Terms {
-			if t = strings.TrimSpace(t); t != "" {
+			if t, ok := cleanTerm(t); ok {
 				terms = append(terms, t)
 			}
 		}
@@ -61,9 +63,15 @@ func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 			return
 		}
 		for _, t := range terms {
-			if len(t) > maxTermBytes {
-				http.Error(w, "a term is too long", http.StatusBadRequest)
+			if len(t.Context) > maxContextWords {
+				http.Error(w, "a term has more than 10 context words", http.StatusBadRequest)
 				return
+			}
+			for _, word := range append([]string{t.Term}, t.Context...) {
+				if len(word) > maxTermBytes {
+					http.Error(w, "a term or context word is too long", http.StatusBadRequest)
+					return
+				}
 			}
 		}
 		if err := vocab.Add(r.Context(), terms); err != nil {
@@ -73,4 +81,14 @@ func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func cleanTerm(t search.Term) (search.Term, bool) {
+	clean := search.Term{Term: strings.TrimSpace(t.Term)}
+	for _, word := range t.Context {
+		if word = strings.TrimSpace(word); word != "" {
+			clean.Context = append(clean.Context, word)
+		}
+	}
+	return clean, clean.Term != ""
 }

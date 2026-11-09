@@ -21,7 +21,7 @@ func TestMappingsAreValidJSON(t *testing.T) {
 	}
 }
 
-func TestSoundMatchesSplitTerms(t *testing.T) {
+func TestSoundMatchesMisheardTerms(t *testing.T) {
 	es, ctx := testClient(t)
 	prefix := fmt.Sprintf("test-%d-", time.Now().UnixNano())
 	t.Cleanup(func() {
@@ -43,11 +43,38 @@ func TestSoundMatchesSplitTerms(t *testing.T) {
 		{"Cilium", "silly um"},
 		{"Kubernetes", "cooper netties"},
 		{"KEDA", "Kedah"},
+		{"Gitar", "guitar"},
+		{"Gitar", "Qatar"},
 	} {
 		term, heard := sound(ctx, t, es, prefix, pair[0]), sound(ctx, t, es, prefix, pair[1])
-		if !slices.Equal(term, heard) {
+		if !slices.ContainsFunc(term, func(code string) bool { return slices.Contains(heard, code) }) {
 			t.Errorf("%q sounds like %v, %q like %v", pair[0], term, pair[1], heard)
 		}
+	}
+}
+
+func TestEnsureIndicesAddsNewFields(t *testing.T) {
+	es, ctx := testClient(t)
+	index := fmt.Sprintf("test-%d-%s", time.Now().UnixNano(), VocabularyIndex)
+	t.Cleanup(func() { _, _ = es.Indices.Delete(index).Do(context.Background()) })
+
+	contextField := `"context":  { "type": "text", "analyzer": "english" },`
+	if !strings.Contains(vocabularyMapping, contextField) {
+		t.Fatal("vocabulary mapping no longer has the context field this test removes")
+	}
+	before := strings.Replace(vocabularyMapping, contextField, "", 1)
+	if _, err := es.Indices.Create(index).Raw(strings.NewReader(before)).Do(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := addFields(ctx, es, index, vocabularyMapping); err != nil {
+		t.Fatal(err)
+	}
+	res, err := es.Indices.GetFieldMapping("context").Index(index).Do(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res[index].Mappings) == 0 {
+		t.Errorf("context field was not added to %s", index)
 	}
 }
 

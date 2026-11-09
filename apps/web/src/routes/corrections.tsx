@@ -21,13 +21,23 @@ export const Route = createFileRoute("/corrections")({
 });
 
 const example =
-	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah";
+	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah. I play guitar, I have been to Qatar, and Sonar Guitar reviews my pull requests.";
+
+function contextWords(input: string): string[] {
+	return input
+		.split(",")
+		.map((word) => word.trim())
+		.filter(Boolean);
+}
 
 function Corrections() {
 	const heardId = useId();
 	const termId = useId();
+	const contextId = useId();
+	const contextHelpId = useId();
 	const [heard, setHeard] = useState(example);
 	const [term, setTerm] = useState("");
+	const [context, setContext] = useState("");
 
 	const correction = useMutation({
 		mutationFn: correctText,
@@ -36,7 +46,10 @@ function Corrections() {
 	});
 	const addition = useMutation({
 		mutationFn: addTerms,
-		onSuccess: () => setTerm(""),
+		onSuccess: () => {
+			setTerm("");
+			setContext("");
+		},
 	});
 
 	const corrected =
@@ -120,28 +133,47 @@ function Corrections() {
 						className="flex flex-col gap-2"
 						onSubmit={(e) => {
 							e.preventDefault();
-							addition.mutate([term.trim()]);
+							addition.mutate([
+								{ term: term.trim(), context: contextWords(context) },
+							]);
 						}}
 					>
 						<Label htmlFor={termId}>Term</Label>
-						<div className="flex gap-2">
-							<Input
-								id={termId}
-								value={term}
-								maxLength={64}
-								onChange={(e) => {
-									setTerm(e.target.value);
-									addition.reset();
-								}}
-							/>
-							<Button
-								type="submit"
-								variant="outline"
-								disabled={addition.isPending || !term.trim()}
-							>
-								Add
-							</Button>
-						</div>
+						<Input
+							id={termId}
+							value={term}
+							maxLength={64}
+							onChange={(e) => {
+								setTerm(e.target.value);
+								addition.reset();
+							}}
+						/>
+						<Label htmlFor={contextId} className="mt-2">
+							Context words (optional)
+						</Label>
+						<Input
+							id={contextId}
+							value={context}
+							aria-describedby={contextHelpId}
+							placeholder="Sonar, review, pull request"
+							onChange={(e) => {
+								setContext(e.target.value);
+								addition.reset();
+							}}
+						/>
+						<p id={contextHelpId} className="text-sm text-muted-foreground">
+							Comma-separated. The term is only used when one of these words is
+							said nearby. Use it for names that sound like everyday words, like
+							Gitar and guitar.
+						</p>
+						<Button
+							type="submit"
+							variant="outline"
+							className="self-start"
+							disabled={addition.isPending || !term.trim()}
+						>
+							Add
+						</Button>
 						<p aria-live="polite" className="text-sm">
 							{addition.isSuccess && (
 								<span className="text-muted-foreground">

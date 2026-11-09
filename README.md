@@ -20,7 +20,9 @@ OpenTelemetry everywhere → Dash0
 Elasticsearch is the core data layer:
 
 - **Phonetic correction.** Whisper output is matched against a vocabulary with phonetic
-  analysis, so a misheard term snaps to the right spelling.
+  analysis, so a misheard term snaps to the right spelling. A term that sounds like an everyday
+  word carries context words and is only used when one is said nearby ("Sonar Gitar", not
+  "playing a guitar").
 - **Vocabulary prompting.** Significant-terms aggregations over a talk's description seed
   Whisper's prompt with the jargon it should expect.
 - **Transcript search.** Search across every talk's captions, jumping to the moment a term was said.
