@@ -26,17 +26,33 @@ const (
 	// KT. Requiring the spelling to be half the same keeps "silly um" →
 	// "Cilium" (0.67) and rejects "cat" → "KEDA" (0.25).
 	minSimilarity = 0.5
+	// A term with context words needs one of them close by. Four words reach
+	// "using Sonar Guitar" but not, in "the country Qatar and I am using
+	// Sonar", from Qatar to Sonar.
+	contextWords = 4
 )
 
-var wordPattern = regexp.MustCompile(`[\p{L}\p{N}]+(?:'\p{L}+)?`)
+var (
+	wordPattern = regexp.MustCompile(`[\p{L}\p{N}]+(?:'\p{L}+)?`)
+	// A context word in the next clause is about something else.
+	clauseBreak = regexp.MustCompile(`[.,;:!?]`)
+)
+
+// lookup is a phrase to match against the vocabulary, with the words around
+// it that a term's context words are checked against.
+type lookup struct {
+	Phrase string
+	Window string
+}
 
 type phrase struct {
 	first, last int
-	text        string
+	lookup
 }
 
-// matchFunc returns, for each phrase, vocabulary terms that sound like it.
-type matchFunc func(ctx context.Context, phrases []string) ([][]string, error)
+// matchFunc returns, for each lookup, vocabulary terms that sound like its
+// phrase.
+type matchFunc func(ctx context.Context, lookups []lookup) ([][]string, error)
 
 type replacement struct {
 	last       int
@@ -48,11 +64,11 @@ func correct(ctx context.Context, text string, match matchFunc) (Correction, err
 	words := wordPattern.FindAllStringIndex(text, -1)
 	candidates := phrases(text, words)
 
-	texts := make([]string, len(candidates))
+	lookups := make([]lookup, len(candidates))
 	for i, c := range candidates {
-		texts[i] = c.text
+		lookups[i] = c.lookup
 	}
-	terms, err := match(ctx, texts)
+	terms, err := match(ctx, lookups)
 	if err != nil {
 		return Correction{}, err
 	}
@@ -60,7 +76,7 @@ func correct(ctx context.Context, text string, match matchFunc) (Correction, err
 	best := make(map[int]replacement)
 	for i, c := range candidates {
 		for _, term := range terms[i] {
-			s, ok := soundsRight(c.text, term)
+			s, ok := soundsRight(c.Phrase, term)
 			if !ok {
 				continue
 			}
@@ -105,13 +121,30 @@ func phrases(text string, words [][]int) []phrase {
 	var out []phrase
 	for first := range words {
 		for last := first; last < len(words) && last < first+maxPhraseWords; last++ {
-			p := phrase{first: first, last: last, text: text[words[first][0]:words[last][1]]}
-			if len(letters(p.text)) >= minLetters {
-				out = append(out, p)
+			heard := text[words[first][0]:words[last][1]]
+			if len(letters(heard)) >= minLetters {
+				out = append(out, phrase{first: first, last: last, lookup: lookup{
+					Phrase: heard,
+					Window: window(text, words, first, last),
+				}})
 			}
 		}
 	}
 	return out
+}
+
+func window(text string, words [][]int, first, last int) string {
+	joined := func(a, b int) bool {
+		return !clauseBreak.MatchString(text[words[a][1]:words[b][0]])
+	}
+	var before, after []string
+	for i := first - 1; i >= 0 && len(before) < contextWords && joined(i, i+1); i-- {
+		before = append([]string{text[words[i][0]:words[i][1]]}, before...)
+	}
+	for i := last + 1; i < len(words) && len(after) < contextWords && joined(i-1, i); i++ {
+		after = append(after, text[words[i][0]:words[i][1]])
+	}
+	return strings.Join(append(before, after...), " ")
 }
 
 func soundsRight(heard, term string) (float64, bool) {

@@ -37,6 +37,11 @@ export async function correctText(text: string): Promise<Correction> {
 	return (await post("/api/corrections", { text })).json();
 }
 
-export async function addTerms(terms: string[]): Promise<void> {
+export type Term = {
+	term: string;
+	context?: string[];
+};
+
+export async function addTerms(terms: Term[]): Promise<void> {
 	await post("/api/vocabulary", { terms });
 }

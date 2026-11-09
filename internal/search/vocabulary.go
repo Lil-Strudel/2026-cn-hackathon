@@ -18,14 +18,30 @@ import (
 
 const instrumentation = "github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 
+// Term is a vocabulary entry. A term with Context is only used when one of
+// those words is said near it, for names that sound like everyday words:
+// "Gitar" sounds like "guitar" and "Qatar".
+type Term struct {
+	Term    string   `json:"term"`
+	Context []string `json:"context,omitempty"`
+}
+
 // DefaultTerms seeds the vocabulary with cloud native names Whisper tends to
 // mishear, until talks bring their own.
-var DefaultTerms = []string{
+var DefaultTerms = append(plainTerms(
 	"Argo CD", "Backstage", "CNCF", "Cilium", "containerd", "cosign", "Crossplane",
-	"Dash0", "eBPF", "Elasticsearch", "Envoy", "etcd", "Falco", "Flux", "Gitar",
+	"Dash0", "eBPF", "Elasticsearch", "Envoy", "etcd", "Falco", "Flux",
 	"Grafana", "gRPC", "Helm", "Hubble", "Istio", "Jaeger", "KEDA", "Kibana",
 	"Knative", "KubeCon", "kubectl", "Kubernetes", "Linkerd", "OpenTelemetry",
 	"Prometheus", "Sigstore", "SPIFFE", "Talos", "WebAssembly",
+), Term{Term: "Gitar", Context: []string{"Sonar", "review", "pull request", "merge", "CI"}})
+
+func plainTerms(names ...string) []Term {
+	terms := make([]Term, len(names))
+	for i, name := range names {
+		terms[i] = Term{Term: name}
+	}
+	return terms
 }
 
 type Vocabulary struct {
@@ -48,20 +64,17 @@ func newVocabulary(es *elasticsearch.TypedClient, index string) (*Vocabulary, er
 	return &Vocabulary{es: es, index: index, tracer: otel.Tracer(instrumentation), corrections: corrections}, nil
 }
 
-type vocabularyTerm struct {
-	Term string `json:"term"`
-}
-
-// Add stores terms, keyed by their lowercase form so adding one twice is
-// harmless. It waits for a refresh so the terms correct the next request.
-func (v *Vocabulary) Add(ctx context.Context, terms []string) error {
+// Add stores terms, keyed by their lowercase form, so adding a term again
+// replaces its context. It waits for a refresh so the terms correct the next
+// request.
+func (v *Vocabulary) Add(ctx context.Context, terms []Term) error {
 	if len(terms) == 0 {
 		return nil
 	}
 	bulk := v.es.Bulk().Index(v.index).Refresh(refresh.Waitfor)
 	for _, term := range terms {
-		id := strings.ToLower(term)
-		if err := bulk.IndexOp(types.IndexOperation{Id_: &id}, vocabularyTerm{Term: term}); err != nil {
+		id := strings.ToLower(term.Term)
+		if err := bulk.IndexOp(types.IndexOperation{Id_: &id}, term); err != nil {
 			return err
 		}
 	}
@@ -95,20 +108,20 @@ func (v *Vocabulary) Correct(ctx context.Context, text string) (Correction, erro
 	return c, nil
 }
 
-func (v *Vocabulary) soundAlikes(ctx context.Context, phrases []string) ([][]string, error) {
-	if len(phrases) == 0 {
+func (v *Vocabulary) soundAlikes(ctx context.Context, lookups []lookup) ([][]string, error) {
+	if len(lookups) == 0 {
 		return nil, nil
 	}
 	var body bytes.Buffer
 	enc := json.NewEncoder(&body)
-	for _, p := range phrases {
+	for _, l := range lookups {
 		if err := enc.Encode(map[string]any{}); err != nil {
 			return nil, err
 		}
 		query := map[string]any{
 			"size":    3,
 			"_source": []string{"term"},
-			"query":   map[string]any{"match": map[string]any{"term.sound": p}},
+			"query":   soundAlikeQuery(l),
 		}
 		if err := enc.Encode(query); err != nil {
 			return nil, err
@@ -119,12 +132,12 @@ func (v *Vocabulary) soundAlikes(ctx context.Context, phrases []string) ([][]str
 	if err != nil {
 		return nil, fmt.Errorf("match vocabulary: %w", err)
 	}
-	out := make([][]string, len(phrases))
+	out := make([][]string, len(lookups))
 	for i, item := range res.Responses {
 		switch item := item.(type) {
 		case *types.MultiSearchItem:
 			for _, hit := range item.Hits.Hits {
-				var t vocabularyTerm
+				var t Term
 				if err := json.Unmarshal(hit.Source_, &t); err != nil {
 					return nil, err
 				}
@@ -135,4 +148,18 @@ func (v *Vocabulary) soundAlikes(ctx context.Context, phrases []string) ([][]str
 		}
 	}
 	return out, nil
+}
+
+func soundAlikeQuery(l lookup) map[string]any {
+	hasNoContext := map[string]any{"bool": map[string]any{
+		"must_not": map[string]any{"exists": map[string]any{"field": "context"}},
+	}}
+	contextNearby := map[string]any{"match": map[string]any{"context": l.Window}}
+	return map[string]any{"bool": map[string]any{
+		"must": map[string]any{"match": map[string]any{"term.sound": l.Phrase}},
+		"filter": map[string]any{"bool": map[string]any{
+			"should":               []any{hasNoContext, contextNearby},
+			"minimum_should_match": 1,
+		}},
+	}}
 }

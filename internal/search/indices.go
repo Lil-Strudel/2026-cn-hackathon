@@ -1,7 +1,9 @@
 package search
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -56,6 +58,7 @@ const vocabularyMapping = `{
           "sound":   { "type": "text", "analyzer": "sound" }
         }
       },
+      "context":  { "type": "text", "analyzer": "english" },
       "talk_ids": { "type": "keyword" }
     }
   }
@@ -80,8 +83,9 @@ var indices = map[string]string{
 	CaptionsIndex:   captionsMapping,
 }
 
-// EnsureIndices creates any index that doesn't exist yet. Existing indices
-// keep their mapping, so a mapping change needs the index deleted first.
+// EnsureIndices creates any index that doesn't exist yet and adds new fields
+// to the ones that do. Changing an existing field needs the index deleted
+// first.
 func EnsureIndices(ctx context.Context, es *elasticsearch.TypedClient) error {
 	return ensureIndices(ctx, es, "")
 }
@@ -89,9 +93,28 @@ func EnsureIndices(ctx context.Context, es *elasticsearch.TypedClient) error {
 func ensureIndices(ctx context.Context, es *elasticsearch.TypedClient, prefix string) error {
 	for name, mapping := range indices {
 		_, err := es.Indices.Create(prefix + name).Raw(strings.NewReader(mapping)).Do(ctx)
-		if err != nil && !alreadyExists(err) {
+		if err == nil {
+			continue
+		}
+		if !alreadyExists(err) {
 			return fmt.Errorf("create index %s: %w", prefix+name, err)
 		}
+		if err := addFields(ctx, es, prefix+name, mapping); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addFields(ctx context.Context, es *elasticsearch.TypedClient, index, mapping string) error {
+	var parts struct {
+		Mappings json.RawMessage `json:"mappings"`
+	}
+	if err := json.Unmarshal([]byte(mapping), &parts); err != nil {
+		return fmt.Errorf("read mapping of %s: %w", index, err)
+	}
+	if _, err := es.Indices.PutMapping(index).Raw(bytes.NewReader(parts.Mappings)).Do(ctx); err != nil {
+		return fmt.Errorf("update mapping of %s: %w", index, err)
 	}
 	return nil
 }

@@ -31,8 +31,10 @@ func TestRejectsBadRequests(t *testing.T) {
 		{"correction with invalid JSON", handleCorrect(vocab), "{", http.StatusBadRequest},
 		{"correction that is too long", handleCorrect(vocab), `{"text":` + long + `}`, http.StatusRequestEntityTooLarge},
 		{"no terms", handleAddTerms(vocab), `{"terms":[]}`, http.StatusBadRequest},
-		{"only blank terms", handleAddTerms(vocab), `{"terms":["  "]}`, http.StatusBadRequest},
-		{"term that is too long", handleAddTerms(vocab), `{"terms":["` + strings.Repeat("a", maxTermBytes+1) + `"]}`, http.StatusBadRequest},
+		{"only blank terms", handleAddTerms(vocab), `{"terms":[{"term":"  ","context":["Sonar"]}]}`, http.StatusBadRequest},
+		{"term that is too long", handleAddTerms(vocab), `{"terms":[{"term":"` + long[1:maxTermBytes+2] + `"}]}`, http.StatusBadRequest},
+		{"context word that is too long", handleAddTerms(vocab), `{"terms":[{"term":"Gitar","context":["` + long[1:maxTermBytes+2] + `"]}]}`, http.StatusBadRequest},
+		{"too many context words", handleAddTerms(vocab), `{"terms":[{"term":"Gitar","context":[` + strings.Repeat(`"Sonar",`, maxContextWords) + `"CI"]}]}`, http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
