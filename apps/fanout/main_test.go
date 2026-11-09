@@ -20,7 +20,11 @@ func TestConfigDefaultsMatchViteProxy(t *testing.T) {
 }
 
 func TestHealthz(t *testing.T) {
-	mux := newMux(redis.NewClient(&redis.Options{}))
+	h, err := newHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := newMux(t.Context(), redis.NewClient(&redis.Options{}), h)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))

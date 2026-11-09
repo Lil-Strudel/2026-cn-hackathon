@@ -13,8 +13,6 @@ is fixed.
   port 9090. Fanout is the service that scales, so it probably needs to target `fanout` on the
   port fanout serves its metric on. Fix it in the homelab repo together with the
   `ScaledObject`.
-- **fanout records no Redis metrics.** It calls `redisotel.InstrumentTracing` but not
-  `InstrumentMetrics`, unlike the api. Depth of instrumentation counts for the Dash0 track.
 
 ## Repository
 
