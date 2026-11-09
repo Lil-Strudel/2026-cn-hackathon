@@ -105,7 +105,7 @@ func run() error {
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
 	mux.HandleFunc("GET /api/transcribe", audio.ServeTranscription)
 
-	talkNotes := &talkNotes{history: history, store: search.NewTalkNotes(es), now: time.Now}
+	talkNotes := &talkNotes{history: history, store: search.NewTalkNotes(es), talks: talks}
 	if cfg.OpenAIAPIKey != "" {
 		writer, err := notes.NewOpenAI(cfg.OpenAIAPIKey, cfg.OpenAINotesModel)
 		if err != nil {
@@ -113,6 +113,7 @@ func run() error {
 		}
 		talkNotes.writer = writer
 	}
+	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(talks, history, talkNotes.start))
 	mux.HandleFunc("GET /api/talks/{talkID}/notes", talkNotes.handleGet)
 	mux.HandleFunc("POST /api/talks/{talkID}/notes", talkNotes.handleRewrite)
 
@@ -141,7 +142,6 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Voca
 	mux.HandleFunc("GET /api/talks", handleListTalks(talks))
 	mux.HandleFunc("POST /api/talks", handleCreateTalk(talks))
 	mux.HandleFunc("GET /api/talks/{talkID}", handleGetTalk(talks))
-	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(talks))
 	mux.HandleFunc("GET /api/search", handleSearchTalks(talks))
 	mux.HandleFunc("GET /api/talks/{talkID}/captions", handleCaptionHistory(history))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@ import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { useCaptionView } from "~/hooks/use-caption-view";
-import { useCaptions } from "~/hooks/use-captions";
+import type { CaptionStream } from "~/hooks/use-captions";
 import { type CaptionView, isCaptionView } from "~/lib/caption-view";
 import type { CaptionLine } from "~/lib/captions";
 import { recordCorrectionsShown } from "~/lib/telemetry";
@@ -20,8 +20,8 @@ const statusText = {
 	closed: "Connection closed.",
 };
 
-export function LiveCaptions({ talkId }: { talkId: string }) {
-	const { lines, status, historyError } = useCaptions(talkId);
+export function LiveCaptions({ captions }: { captions: CaptionStream }) {
+	const { lines, status, historyError } = captions;
 	const [view, setView] = useCaptionView();
 	const [corrected, setCorrected] = useState(true);
 	const finished = lines.filter((line) => line.final);

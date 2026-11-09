@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { LiveCaptions } from "~/components/live-captions";
+import { useCaptions } from "~/hooks/use-captions";
 import * as captions from "~/lib/captions";
 
 vi.mock("~/lib/captions", { spy: true });
@@ -19,10 +20,14 @@ beforeEach(() => {
 	vi.mocked(captions.subscribeCaptions).mockReturnValue(() => {});
 });
 
+function DemoCaptions() {
+	return <LiveCaptions captions={useCaptions("demo")} />;
+}
+
 test("turning correction off shows the captions as they were heard", async () => {
 	render(
 		<QueryClientProvider client={new QueryClient()}>
-			<LiveCaptions talkId="demo" />
+			<DemoCaptions />
 		</QueryClientProvider>,
 	);
 	expect(await screen.findByText("Cilium")).toBeDefined();

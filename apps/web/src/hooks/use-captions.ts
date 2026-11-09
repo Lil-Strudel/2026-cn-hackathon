@@ -12,10 +12,14 @@ import {
 	recordFirstCaption,
 } from "~/lib/telemetry";
 
-export function useCaptions(talkId: string) {
+export type CaptionStream = ReturnType<typeof useCaptions>;
+
+/** Pass `enabled: false` for a talk that isn't live, so it doesn't hold a stream open. */
+export function useCaptions(talkId: string, enabled = true) {
 	const history = useQuery({
 		queryKey: ["captions", talkId],
 		queryFn: () => fetchCaptions(talkId),
+		enabled,
 		staleTime: Number.POSITIVE_INFINITY,
 		refetchOnWindowFocus: false,
 	});
@@ -25,6 +29,7 @@ export function useCaptions(talkId: string) {
 	useEffect(() => {
 		setLive([]);
 		setStatus("connecting");
+		if (!enabled) return;
 		const subscribedAt = performance.now();
 		let waiting = true;
 
@@ -42,7 +47,7 @@ export function useCaptions(talkId: string) {
 				setStatus(next);
 			},
 		);
-	}, [talkId]);
+	}, [talkId, enabled]);
 
 	const lines = useMemo(
 		() => mergeLines(history.data ?? [], live),

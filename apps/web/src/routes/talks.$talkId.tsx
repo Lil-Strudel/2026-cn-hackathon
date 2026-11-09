@@ -6,6 +6,7 @@ import { FinishedTalk } from "~/components/finished-talk";
 import { LiveBadge } from "~/components/live-badge";
 import { LiveCaptions } from "~/components/live-captions";
 import { Button } from "~/components/ui/button";
+import { useCaptions } from "~/hooks/use-captions";
 import { formatDateTime, formatTime } from "~/lib/format";
 import { endTalk, fetchTalk } from "~/lib/talks";
 import { recordTalkEnded } from "~/lib/telemetry";
@@ -20,6 +21,10 @@ function TalkPage() {
 		queryKey: ["talk", talkId],
 		queryFn: () => fetchTalk(talkId),
 	});
+	const live = talk.data?.status === "live";
+	const captions = useCaptions(talkId, live);
+	// The api only ends a talk with stored captions, and only final lines are stored.
+	const captioned = captions.lines.some((line) => line.final);
 	const title = useRef<HTMLHeadingElement>(null);
 	const queryClient = useQueryClient();
 
@@ -80,15 +85,17 @@ function TalkPage() {
 									Caption this talk
 								</Link>
 							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={ending.isPending}
-								onClick={() => ending.mutate()}
-							>
-								<CircleStop aria-hidden />
-								{ending.isPending ? "Ending…" : "End talk"}
-							</Button>
+							{captioned && (
+								<Button
+									variant="outline"
+									size="sm"
+									disabled={ending.isPending}
+									onClick={() => ending.mutate()}
+								>
+									<CircleStop aria-hidden />
+									{ending.isPending ? "Ending…" : "End talk"}
+								</Button>
+							)}
 						</div>
 					)}
 					{ending.isError && (
@@ -101,7 +108,7 @@ function TalkPage() {
 					</p>
 				</header>
 			)}
-			{talk.data?.status === "live" && <LiveCaptions talkId={talkId} />}
+			{live && <LiveCaptions captions={captions} />}
 			{talk.data?.status === "finished" && <FinishedTalk talkId={talkId} />}
 		</main>
 	);

@@ -58,13 +58,29 @@ func (f *fakeTalks) Search(_ context.Context, query string) ([]search.SearchHit,
 	return nil, f.err
 }
 
+type captionCounts map[string]int64
+
+func (c captionCounts) Count(_ context.Context, talkID string) (int64, error) {
+	return c[talkID], nil
+}
+
 func serveTalks(t *testing.T, store talkStore, method, target, body string) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveEnd(t, store, captionCounts{"guitar-demo": 3}, nil, method, target, body)
+}
+
+func serveEnd(t *testing.T, store talkStore, lines captionCounter, ended *[]string, method, target, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	onEnd := func(_ context.Context, talkID string) {
+		if ended != nil {
+			*ended = append(*ended, talkID)
+		}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/talks", handleListTalks(store))
 	mux.HandleFunc("POST /api/talks", handleCreateTalk(store))
 	mux.HandleFunc("GET /api/talks/{talkID}", handleGetTalk(store))
-	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(store))
+	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(store, lines, onEnd))
 	mux.HandleFunc("GET /api/search", handleSearchTalks(store))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body)))
@@ -127,13 +143,17 @@ func TestGetTalk(t *testing.T) {
 
 func TestEndTalk(t *testing.T) {
 	store := &fakeTalks{talks: map[string]search.Talk{"guitar-demo": {ID: "guitar-demo", Status: search.TalkLive}}}
-	rec := serveTalks(t, store, http.MethodPost, "/api/talks/guitar-demo/end", "")
+	var ended []string
+	rec := serveEnd(t, store, captionCounts{"guitar-demo": 3}, &ended, http.MethodPost, "/api/talks/guitar-demo/end", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d: %s", rec.Code, rec.Body)
 	}
 	var talk search.Talk
 	if err := json.Unmarshal(rec.Body.Bytes(), &talk); err != nil || talk.Status != search.TalkFinished || talk.EndedAt == nil {
 		t.Errorf("response %s, err %v", rec.Body, err)
+	}
+	if len(ended) != 1 || ended[0] != "guitar-demo" {
+		t.Errorf("notes started for %v, want [guitar-demo]", ended)
 	}
 	for target, want := range map[string]int{
 		"/api/talks/missing/end":     http.StatusNotFound,
@@ -142,6 +162,18 @@ func TestEndTalk(t *testing.T) {
 		if rec := serveTalks(t, store, http.MethodPost, target, ""); rec.Code != want {
 			t.Errorf("POST %s: got %d, want %d", target, rec.Code, want)
 		}
+	}
+}
+
+func TestATalkWithoutCaptionsStaysLive(t *testing.T) {
+	store := &fakeTalks{talks: map[string]search.Talk{"guitar-demo": {ID: "guitar-demo", Status: search.TalkLive}}}
+	var ended []string
+	rec := serveEnd(t, store, captionCounts{}, &ended, http.MethodPost, "/api/talks/guitar-demo/end", "")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("got %d, want 409: %s", rec.Code, rec.Body)
+	}
+	if store.talks["guitar-demo"].Status != search.TalkLive || len(ended) != 0 {
+		t.Errorf("talk %+v ended, notes started for %v", store.talks["guitar-demo"], ended)
 	}
 }
 

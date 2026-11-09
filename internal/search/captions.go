@@ -71,6 +71,22 @@ func (c *Captions) Store(ctx context.Context, line captions.Caption, heard strin
 	return nil
 }
 
+// Count returns how many final lines a talk has stored.
+func (c *Captions) Count(ctx context.Context, talkID string) (int64, error) {
+	ctx, span := c.tracer.Start(ctx, "captions.count", trace.WithAttributes(attribute.String("talk.id", talkID)))
+	defer span.End()
+
+	res, err := c.es.Count().Index(c.index).
+		Query(&types.Query{Term: map[string]types.TermQuery{"talk_id": {Value: talkID}}}).
+		Do(ctx)
+	if err != nil {
+		span.RecordError(err)
+		return 0, fmt.Errorf("count captions: %w", err)
+	}
+	span.SetAttributes(attribute.Int64("captions.lines", res.Count))
+	return res.Count, nil
+}
+
 // History returns a talk's stored lines in the order they were said.
 func (c *Captions) History(ctx context.Context, talkID string) ([]captions.Caption, error) {
 	ctx, span := c.tracer.Start(ctx, "captions.history", trace.WithAttributes(attribute.String("talk.id", talkID)))

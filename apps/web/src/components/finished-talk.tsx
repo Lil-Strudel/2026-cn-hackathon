@@ -15,8 +15,8 @@ export function FinishedTalk({ talkId }: { talkId: string }) {
 	const notes = useQuery({
 		queryKey: ["notes", talkId],
 		queryFn: () => fetchNotes(talkId),
-		// The api writes notes once the captions have been quiet for a minute,
-		// so keep asking until they exist.
+		// Ending the talk starts the notes, but the transcript may have been too
+		// short for any, or the write may have failed and be retried.
 		refetchInterval: (query) =>
 			query.state.data?.summary === null ? notesPollMs : false,
 	});
