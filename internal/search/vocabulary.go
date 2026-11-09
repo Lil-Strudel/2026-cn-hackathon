@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/elastic/go-elasticsearch/v9"
@@ -110,6 +111,58 @@ func (v *Vocabulary) Seed(ctx context.Context, terms []Term) error {
 			}
 		}
 	}
+	return nil
+}
+
+// maxTerms bounds List. A vocabulary is names typed in by hand, far fewer than
+// this.
+const maxTerms = 1000
+
+// List returns every term, sorted the way people read them, ignoring case.
+func (v *Vocabulary) List(ctx context.Context) ([]Term, error) {
+	ctx, span := v.tracer.Start(ctx, "vocabulary.list")
+	defer span.End()
+
+	res, err := v.es.Search().Index(v.index).Size(maxTerms).Do(ctx)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("list terms: %w", err)
+	}
+	terms := make([]Term, 0, len(res.Hits.Hits))
+	for _, hit := range res.Hits.Hits {
+		var t Term
+		if err := json.Unmarshal(hit.Source_, &t); err != nil {
+			return nil, err
+		}
+		terms = append(terms, t)
+	}
+	slices.SortFunc(terms, func(a, b Term) int {
+		return strings.Compare(strings.ToLower(a.Term), strings.ToLower(b.Term))
+	})
+	span.SetAttributes(attribute.Int("vocabulary.terms", len(terms)))
+	return terms, nil
+}
+
+func (v *Vocabulary) Empty(ctx context.Context) (bool, error) {
+	res, err := v.es.Count().Index(v.index).Do(ctx)
+	if err != nil {
+		return false, fmt.Errorf("count terms: %w", err)
+	}
+	return res.Count == 0, nil
+}
+
+// Remove deletes a term, if it exists, and waits for a refresh so the next
+// request is no longer corrected to it.
+func (v *Vocabulary) Remove(ctx context.Context, term string) error {
+	ctx, span := v.tracer.Start(ctx, "vocabulary.remove", trace.WithAttributes(attribute.String("vocabulary.term", term)))
+	defer span.End()
+
+	res, err := v.es.Delete(v.index, strings.ToLower(term)).Refresh(refresh.Waitfor).Do(ctx)
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("remove term: %w", err)
+	}
+	span.SetAttributes(attribute.String("vocabulary.result", res.Result.String()))
 	return nil
 }
 

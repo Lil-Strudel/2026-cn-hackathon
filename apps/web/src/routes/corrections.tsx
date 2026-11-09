@@ -1,7 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { CorrectedText } from "~/components/corrected-text";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
 	Card,
@@ -13,7 +14,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import { addTerms, correctText } from "~/lib/api";
+import { addTerms, correctText, listTerms, removeTerm } from "~/lib/api";
 import { recordCorrection } from "~/lib/telemetry";
 
 export const Route = createFileRoute("/corrections")({
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/corrections")({
 
 const example =
 	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah. I play guitar, I have been to Qatar, and Sonar Guitar reviews my pull requests.";
+
+const vocabularyKey = ["vocabulary"];
 
 function contextWords(input: string): string[] {
 	return input
@@ -38,6 +41,7 @@ function Corrections() {
 	const [heard, setHeard] = useState(example);
 	const [term, setTerm] = useState("");
 	const [context, setContext] = useState("");
+	const queryClient = useQueryClient();
 
 	const correction = useMutation({
 		mutationFn: correctText,
@@ -49,6 +53,7 @@ function Corrections() {
 		onSuccess: () => {
 			setTerm("");
 			setContext("");
+			queryClient.invalidateQueries({ queryKey: vocabularyKey });
 		},
 	});
 
@@ -189,6 +194,86 @@ function Corrections() {
 					</form>
 				</CardContent>
 			</Card>
+
+			<Vocabulary />
 		</main>
+	);
+}
+
+function Vocabulary() {
+	const queryClient = useQueryClient();
+	const terms = useQuery({ queryKey: vocabularyKey, queryFn: listTerms });
+	const removal = useMutation({
+		mutationFn: removeTerm,
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: vocabularyKey }),
+	});
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<h2>Vocabulary</h2>
+				</CardTitle>
+				<CardDescription>
+					Every term captions are corrected to, with its context words.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-2">
+				{terms.isPending && (
+					<p className="text-sm text-muted-foreground">Loading terms…</p>
+				)}
+				{terms.isError && (
+					<div role="alert" className="flex flex-col items-start gap-2">
+						<p className="text-sm text-destructive">
+							Couldn't load terms: {terms.error.message}
+						</p>
+						<Button variant="outline" size="sm" onClick={() => terms.refetch()}>
+							Try again
+						</Button>
+					</div>
+				)}
+				{terms.data?.length === 0 && (
+					<p className="text-sm text-muted-foreground">No terms yet.</p>
+				)}
+				{terms.data && terms.data.length > 0 && (
+					<ul className="flex flex-col divide-y divide-border">
+						{terms.data.map((t) => (
+							<li
+								key={t.term}
+								className="flex items-center justify-between gap-2 py-2"
+							>
+								<div className="flex flex-wrap items-center gap-1">
+									<span className="mr-1 font-medium">{t.term}</span>
+									{t.context?.map((word) => (
+										<Badge key={word} variant="outline">
+											{word}
+										</Badge>
+									))}
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									disabled={removal.isPending && removal.variables === t.term}
+									aria-label={`Remove ${t.term}`}
+									onClick={() => removal.mutate(t.term)}
+								>
+									Remove
+								</Button>
+							</li>
+						))}
+					</ul>
+				)}
+				<p aria-live="polite" className="text-sm">
+					{removal.isSuccess && (
+						<span className="text-muted-foreground">
+							Removed {removal.variables}.
+						</span>
+					)}
+					{removal.isError && (
+						<span className="text-destructive">{removal.error.message}</span>
+					)}
+				</p>
+			</CardContent>
+		</Card>
 	);
 }

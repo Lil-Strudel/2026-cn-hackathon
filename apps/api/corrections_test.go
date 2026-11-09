@@ -46,3 +46,23 @@ func TestRejectsBadRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestRejectsBadTermsToRemove(t *testing.T) {
+	es, err := elasticsearch.NewTyped(elasticsearch.WithAddresses("http://127.0.0.1:1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vocab, err := search.NewVocabulary(es)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, term := range []string{" ", strings.Repeat("a", maxTermBytes+1)} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/", nil)
+		req.SetPathValue("term", term)
+		handleRemoveTerm(vocab)(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("removing %q: status = %d, want %d", term, rec.Code, http.StatusBadRequest)
+		}
+	}
+}

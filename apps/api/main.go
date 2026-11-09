@@ -73,8 +73,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := vocab.Seed(ctx, search.DefaultTerms); err != nil {
+	// Seeding only an empty vocabulary keeps a removed default from coming back
+	// on the next start, and retries a seed that failed on the first start.
+	empty, err := vocab.Empty(ctx)
+	if err != nil {
 		return err
+	}
+	if empty {
+		if err := vocab.Seed(ctx, search.DefaultTerms); err != nil {
+			return err
+		}
 	}
 	history := search.NewCaptions(es)
 
@@ -109,7 +117,9 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Voca
 		},
 	})
 	mux.HandleFunc("POST /api/corrections", handleCorrect(vocab))
+	mux.HandleFunc("GET /api/vocabulary", handleListTerms(vocab))
 	mux.HandleFunc("POST /api/vocabulary", handleAddTerms(vocab))
+	mux.HandleFunc("DELETE /api/vocabulary/{term}", handleRemoveTerm(vocab))
 	mux.HandleFunc("GET /api/talks/{talkID}/captions", handleCaptionHistory(history))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {
 		info, err := es.Info().Do(r.Context())

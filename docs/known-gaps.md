@@ -18,6 +18,10 @@ is fixed.
   live talk, publishing captions and running a paid OpenAI transcription session for as long as
   it sends. Accepted for the demo (#18). Before real use it needs a per-talk speaker token
   checked before the upgrade, and a cap on concurrent sessions.
+- **Anyone can change the vocabulary.** `POST` and `DELETE /api/vocabulary` accept any client,
+  so anyone can add terms or remove them, defaults included, which changes every talk's
+  corrections. Accepted for the demo. Before real use, changes need an organiser login, and
+  terms should belong to a talk (the mapping already has `talk_ids`).
 
 ## Repository
 
