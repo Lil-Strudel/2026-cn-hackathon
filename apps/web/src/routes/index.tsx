@@ -39,7 +39,11 @@ function Home() {
 
 			<section aria-labelledby="search-heading" className="flex flex-col gap-6">
 				<SearchBox query={q} />
-				{q ? <SearchResults query={q} /> : <PastTalks talks={talks.data} />}
+				{q ? (
+					<SearchResults query={q} />
+				) : (
+					!talks.isError && <PastTalks talks={talks.data} />
+				)}
 			</section>
 		</main>
 	);
