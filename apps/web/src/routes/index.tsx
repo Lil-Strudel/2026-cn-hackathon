@@ -18,10 +18,14 @@ function Home() {
 	const hello = useQuery({ queryKey: ["hello"], queryFn: fetchHello });
 
 	return (
-		<main className="mx-auto flex max-w-xl flex-col gap-6 p-8">
+		<main className="mx-auto flex max-w-xl flex-col gap-6 p-4 sm:p-8">
 			<Card>
 				<CardHeader>
-					<CardTitle>Cloud Native Hackathon 2026</CardTitle>
+					<CardTitle>
+						<h1 className="text-2xl tracking-tight">
+							Cloud Native Hackathon 2026
+						</h1>
+					</CardTitle>
 					<CardDescription>
 						Boilerplate is live. The product name is decided on the day.
 					</CardDescription>
@@ -36,16 +40,14 @@ function Home() {
 					{hello.data && (
 						<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
 							<dt className="text-muted-foreground">api</dt>
-							<dd>{hello.data.message}</dd>
+							<dd className="font-mono">{hello.data.message}</dd>
 							<dt className="text-muted-foreground">elasticsearch</dt>
-							<dd>{hello.data.elasticsearch}</dd>
+							<dd className="font-mono">{hello.data.elasticsearch}</dd>
 							<dt className="text-muted-foreground">redis</dt>
-							<dd>{hello.data.redis}</dd>
+							<dd className="font-mono">{hello.data.redis}</dd>
 						</dl>
 					)}
-					<Button variant="outline" onClick={() => hello.refetch()}>
-						Call again
-					</Button>
+					<Button onClick={() => hello.refetch()}>Call again</Button>
 				</CardContent>
 			</Card>
 		</main>

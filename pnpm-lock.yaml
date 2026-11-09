@@ -173,6 +173,12 @@ catalogs:
     '@dekit/cli':
       specifier: 0.10.3
       version: 0.10.3
+    '@fontsource-variable/lexend':
+      specifier: ^5.3.0
+      version: 5.3.0
+    '@fontsource-variable/red-hat-mono':
+      specifier: ^5.3.0
+      version: 5.3.0
     '@tailwindcss/vite':
       specifier: ^4.3.5
       version: 4.3.5
@@ -248,11 +254,21 @@ importers:
         specifier: 'catalog:'
         version: 0.10.3
 
+  apps/api: {}
+
+  apps/fanout: {}
+
   apps/web:
     dependencies:
       '@dash0/sdk-web':
         specifier: 'catalog:'
         version: 0.30.0
+      '@fontsource-variable/lexend':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@fontsource-variable/red-hat-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -520,6 +536,12 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource-variable/lexend@5.3.0':
+    resolution: {integrity: sha512-3SXtiZ8rFbT0oaPzEboCG5RM3jtyhpNxandh1jWNLqvrJRfV/eP3R+GGw+o5e3hS1uqmAGutKxSvaWG5oyrimA==}
+
+  '@fontsource-variable/red-hat-mono@5.3.0':
+    resolution: {integrity: sha512-/mEvTCcruJY64xRgx1gsmsYuGR7MtOduOsuyeHVJ07p+2gGvCqROauIwaTCcVHL4eBGi+Lns4EUIjrPZLCn5gQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2564,6 +2586,10 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource-variable/lexend@5.3.0': {}
+
+  '@fontsource-variable/red-hat-mono@5.3.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
