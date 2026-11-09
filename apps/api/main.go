@@ -87,6 +87,10 @@ func run() error {
 		}
 	}
 	history := search.NewCaptions(es)
+	talks, err := search.NewTalks(es)
+	if err != nil {
+		return err
+	}
 
 	var transcriber transcribe.Transcriber = transcribe.NewOpenAI(cfg.OpenAIAPIKey)
 	if cfg.OpenAIAPIKey == "" {
@@ -97,7 +101,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("audio handler: %w", err)
 	}
-	mux := newMux(rdb, es, vocab, history)
+	mux := newMux(rdb, es, vocab, history, talks)
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
 	mux.HandleFunc("GET /api/transcribe", audio.ServeTranscription)
 
@@ -119,7 +123,7 @@ func run() error {
 	return err
 }
 
-func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary, history *search.Captions) *http.ServeMux {
+func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary, history *search.Captions, talks talkStore) *http.ServeMux {
 	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 		"elasticsearch": func(ctx context.Context) error {
@@ -134,6 +138,10 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Voca
 	mux.HandleFunc("GET /api/vocabulary", handleListTerms(vocab))
 	mux.HandleFunc("POST /api/vocabulary", handleAddTerms(vocab))
 	mux.HandleFunc("DELETE /api/vocabulary/{term}", handleRemoveTerm(vocab))
+	mux.HandleFunc("GET /api/talks", handleListTalks(talks))
+	mux.HandleFunc("POST /api/talks", handleCreateTalk(talks))
+	mux.HandleFunc("GET /api/talks/{talkID}", handleGetTalk(talks))
+	mux.HandleFunc("GET /api/search", handleSearchTalks(talks))
 	mux.HandleFunc("GET /api/talks/{talkID}/captions", handleCaptionHistory(history))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {
 		info, err := es.Info().Do(r.Context())
