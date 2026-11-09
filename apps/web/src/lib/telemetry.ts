@@ -26,3 +26,11 @@ export function recordThemePreference(preference: ThemePreference) {
 		attributes: { [themeAttribute]: preference },
 	});
 }
+
+export function recordCorrection(corrected: number) {
+	if (!enabled) return;
+	sendEvent("caption.corrected", {
+		title: `Corrected ${corrected} terms`,
+		attributes: { "captions.corrections": corrected },
+	});
+}
