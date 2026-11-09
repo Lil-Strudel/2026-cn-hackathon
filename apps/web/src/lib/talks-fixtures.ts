@@ -1,9 +1,11 @@
-import type {
-	Highlight,
-	HighlightField,
-	SearchHit,
-	Talk,
-	TalkNotes,
+import {
+	type Highlight,
+	type HighlightField,
+	type NewTalk,
+	type SearchHit,
+	type Talk,
+	type TalkNotes,
+	talkSlug,
 } from "~/lib/talks";
 import { transcript } from "~/lib/transcript-fixtures";
 
@@ -13,7 +15,38 @@ const today = (hours: number, minutes: number) => {
 	return date.toISOString();
 };
 
+// Talks made with "New talk" are kept in the browser, so a demo survives a reload.
+const createdKey = "created-talks";
+
+function readCreated(): Talk[] {
+	try {
+		const stored = JSON.parse(localStorage.getItem(createdKey) ?? "[]");
+		return Array.isArray(stored) ? stored : [];
+	} catch {
+		return [];
+	}
+}
+
+const created = readCreated();
+
+export function addTalk(input: NewTalk): Talk {
+	const talk: Talk = {
+		...input,
+		id: talkSlug(input.title, new Set(talks.map((t) => t.id))),
+		status: "live",
+		startedAt: new Date().toISOString(),
+		endedAt: null,
+	};
+	created.unshift(talk);
+	talks.unshift(talk);
+	try {
+		localStorage.setItem(createdKey, JSON.stringify(created));
+	} catch {}
+	return talk;
+}
+
 export const talks: Talk[] = [
+	...created,
 	{
 		id: "understanding-kubernetes",
 		title: "Understanding Kubernetes",

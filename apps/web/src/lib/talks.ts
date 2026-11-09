@@ -10,6 +10,25 @@ export type Talk = {
 	endedAt: string | null;
 };
 
+export type NewTalk = Pick<Talk, "title" | "speaker" | "description">;
+
+const maxSlugLength = 48;
+
+/** A URL-safe id from the title that the api accepts as a talk id, unique among `taken`. */
+export function talkSlug(title: string, taken: Set<string>): string {
+	const base =
+		title
+			.normalize("NFKD")
+			.replace(/[\u0300-\u036f]/g, "")
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.slice(0, maxSlugLength)
+			.replace(/^-+|-+$/g, "") || "talk";
+	let slug = base;
+	for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
+	return slug;
+}
+
 export type HighlightField =
 	| "title"
 	| "description"
@@ -65,4 +84,15 @@ export async function fetchNotes(id: string): Promise<TalkNotes> {
 export async function searchTalks(query: string): Promise<SearchHit[]> {
 	if (useFixtures) return (await fixtures()).search(query);
 	return getJSON(`/api/search?${new URLSearchParams({ q: query })}`);
+}
+
+export async function createTalk(talk: NewTalk): Promise<Talk> {
+	if (useFixtures) return (await fixtures()).addTalk(talk);
+	const res = await fetch("/api/talks", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(talk),
+	});
+	if (!res.ok) throw new Error(`POST /api/talks: ${res.status}`);
+	return res.json();
 }
