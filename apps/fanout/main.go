@@ -53,12 +53,28 @@ func run() error {
 	if err := redisotel.InstrumentTracing(rdb); err != nil {
 		return err
 	}
+	if err := redisotel.InstrumentMetrics(rdb); err != nil {
+		return err
+	}
 
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb))
+	h, err := newHub()
+	if err != nil {
+		return fmt.Errorf("hub: %w", err)
+	}
+	go func() {
+		if err := h.run(ctx, rdb); err != nil {
+			slog.Error("caption subscription ended", "err", err)
+			stop()
+		}
+	}()
+
+	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(ctx, rdb, h))
 }
 
-func newMux(rdb *redis.Client) *http.ServeMux {
-	return httpserver.New(map[string]httpserver.ReadinessCheck{
+func newMux(shutdown context.Context, rdb *redis.Client, h *hub) *http.ServeMux {
+	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 	})
+	mux.Handle("GET /events/talks/{talkID}", h.serveEvents(shutdown))
+	return mux
 }
