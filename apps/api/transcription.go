@@ -47,14 +47,20 @@ func (a *audioHandler) ServeTranscription(w http.ResponseWriter, r *http.Request
 	sent := make(chan struct{})
 	go func() {
 		defer close(sent)
+		var writeErr error
 		for event := range session.Events() {
+			if writeErr != nil {
+				continue
+			}
 			data, err := json.Marshal(transcript{ID: event.SegmentID, Text: event.Text, Final: event.Final})
 			if err != nil {
 				continue
 			}
-			// Events are drained even once writing fails, so Close isn't blocked.
-			if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-				span.RecordError(err)
+			wctx, cancel := context.WithTimeout(ctx, drainTimeout)
+			writeErr = conn.Write(wctx, websocket.MessageText, data)
+			cancel()
+			if writeErr != nil {
+				span.RecordError(writeErr)
 			}
 		}
 	}()
