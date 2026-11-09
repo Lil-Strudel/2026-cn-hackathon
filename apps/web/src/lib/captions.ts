@@ -46,7 +46,9 @@ export function mergeLines(
 	return [...byId.values()].sort((a, b) => a.at.localeCompare(b.at));
 }
 
-const useFixtures = import.meta.env.VITE_API_FIXTURES !== "false";
+// Separate from VITE_API_FIXTURES: the api streams and stores real captions,
+// while talks still come from fixtures until the api serves them.
+const useFixtures = import.meta.env.VITE_CAPTION_FIXTURES === "true";
 const fixtures = () => import("~/lib/captions-fixtures");
 
 export async function fetchCaptions(talkId: string): Promise<CaptionLine[]> {

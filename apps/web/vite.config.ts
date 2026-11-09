@@ -13,7 +13,7 @@ export default defineConfig({
 	resolve: { tsconfigPaths: true },
 	server: {
 		proxy: {
-			"/api": "http://localhost:4100",
+			"/api": { target: "http://localhost:4100", ws: true },
 			"/events": "http://localhost:4200",
 		},
 	},

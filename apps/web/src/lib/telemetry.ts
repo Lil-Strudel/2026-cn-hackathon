@@ -69,3 +69,20 @@ export function recordCaptionsReconnecting() {
 		title: "Caption stream lost, reconnecting",
 	});
 }
+
+export type SpeakerEvent = "started" | "stopped" | "failed";
+
+export function recordSpeaker(
+	talkId: string,
+	event: SpeakerEvent,
+	reason?: string,
+) {
+	if (!enabled) return;
+	sendEvent(`speaker.${event}`, {
+		title: `Speaker ${event}`,
+		attributes: {
+			"app.talk.id": talkId,
+			...(reason ? { "app.speaker.reason": reason } : {}),
+		},
+	});
+}

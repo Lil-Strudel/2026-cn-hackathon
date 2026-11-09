@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mic } from "lucide-react";
 import { FinishedTalk } from "~/components/finished-talk";
 import { LiveBadge } from "~/components/live-badge";
 import { LiveCaptions } from "~/components/live-captions";
@@ -53,6 +53,14 @@ function TalkPage() {
 					<p className="max-w-[65ch] text-sm text-muted-foreground">
 						{talk.data.description}
 					</p>
+					{talk.data.status === "live" && (
+						<Button asChild variant="outline" size="sm" className="self-start">
+							<Link to="/talks/$talkId/speak" params={{ talkId }}>
+								<Mic aria-hidden />
+								Caption this talk
+							</Link>
+						</Button>
+					)}
 				</header>
 			)}
 			{talk.data?.status === "live" && <LiveCaptions talkId={talkId} />}

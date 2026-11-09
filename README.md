@@ -50,9 +50,14 @@ cp .env.example .env  # optional: OpenAI key, Dash0 endpoint
 pnpm dev              # Elasticsearch, Redis, api, fanout and web under dekit
 ```
 
-Until the api serves talks, the web app reads sample talks and simulated captions from
-`apps/web/src/lib/*-fixtures.ts`. Set `VITE_API_FIXTURES=false` in `.env` to call the real `/api`
-and `/events` endpoints instead.
+Until the api serves talks, the web app reads sample talks from
+`apps/web/src/lib/*-fixtures.ts`. Set `VITE_API_FIXTURES=false` in `.env` to call the real
+`/api/talks` endpoints instead. Captions are always real unless you set
+`VITE_CAPTION_FIXTURES=true`, which plays simulated captions for a demo without a speaker.
+
+To caption a talk, open a live one such as http://localhost:4000/talks/understanding-kubernetes,
+choose "Caption this talk" and allow the microphone. Everyone on the talk page sees the captions
+as you speak, and people who join later get the earlier lines too.
 
 The app runs at http://localhost:4000. Vite proxies `/api` to the api on `:4100` and `/events`
 to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as the
