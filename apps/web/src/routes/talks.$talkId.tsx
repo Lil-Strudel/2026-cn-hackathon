@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { FinishedTalk } from "~/components/finished-talk";
 import { LiveBadge } from "~/components/live-badge";
 import { LiveCaptions } from "~/components/live-captions";
 import { Button } from "~/components/ui/button";
@@ -55,6 +56,7 @@ function TalkPage() {
 				</header>
 			)}
 			{talk.data?.status === "live" && <LiveCaptions talkId={talkId} />}
+			{talk.data?.status === "finished" && <FinishedTalk talkId={talkId} />}
 		</main>
 	);
 }

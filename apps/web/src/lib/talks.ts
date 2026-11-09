@@ -21,8 +21,15 @@ export type Highlight = {
 	field: HighlightField;
 	/** Elasticsearch highlight fragment: plain text with matches wrapped in `<mark>`. */
 	fragment: string;
-	/** For transcript hits, when the matching line was said. */
+	/** For transcript hits, the matching caption line and when it was said. */
+	lineId?: string;
 	at?: string;
+};
+
+/** Written by an LLM from the transcript once a talk ends; null until then. */
+export type TalkNotes = {
+	summary: string | null;
+	notes: string[] | null;
 };
 
 export type SearchHit = {
@@ -48,6 +55,11 @@ export async function fetchTalks(): Promise<Talk[]> {
 export async function fetchTalk(id: string): Promise<Talk> {
 	if (useFixtures) return (await fixtures()).findTalk(id);
 	return getJSON(`/api/talks/${encodeURIComponent(id)}`);
+}
+
+export async function fetchNotes(id: string): Promise<TalkNotes> {
+	if (useFixtures) return (await fixtures()).notesFor(id);
+	return getJSON(`/api/talks/${encodeURIComponent(id)}/notes`);
 }
 
 export async function searchTalks(query: string): Promise<SearchHit[]> {
