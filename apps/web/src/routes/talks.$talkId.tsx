@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { LiveBadge } from "~/components/live-badge";
+import { LiveCaptions } from "~/components/live-captions";
 import { Button } from "~/components/ui/button";
-import { formatDateTime } from "~/lib/format";
+import { formatDateTime, formatTime } from "~/lib/format";
 import { fetchTalk } from "~/lib/talks";
 
 export const Route = createFileRoute("/talks/$talkId")({
@@ -40,7 +41,9 @@ function TalkPage() {
 						{talk.data.status === "live" && <LiveBadge />}
 						<span>{talk.data.speaker}</span>
 						<time dateTime={talk.data.startedAt} className="tabular-nums">
-							{formatDateTime(talk.data.startedAt)}
+							{talk.data.status === "live"
+								? `Started ${formatTime(talk.data.startedAt)}`
+								: formatDateTime(talk.data.startedAt)}
 						</time>
 					</div>
 					<h1 className="text-2xl font-semibold tracking-tight">
@@ -51,6 +54,7 @@ function TalkPage() {
 					</p>
 				</header>
 			)}
+			{talk.data?.status === "live" && <LiveCaptions talkId={talkId} />}
 		</main>
 	);
 }

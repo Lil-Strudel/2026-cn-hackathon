@@ -38,3 +38,26 @@ export function recordSearch(queryLength: number, results: number) {
 		},
 	});
 }
+
+export function recordCaptionView(view: string) {
+	if (!enabled) return;
+	sendEvent("captions.view_changed", {
+		title: `Caption view set to ${view}`,
+		attributes: { "app.captions.view": view },
+	});
+}
+
+export function recordFirstCaption(waitMs: number) {
+	if (!enabled) return;
+	sendEvent("captions.first_line", {
+		title: "First caption arrived",
+		attributes: { "app.captions.wait_ms": Math.round(waitMs) },
+	});
+}
+
+export function recordCaptionsReconnecting() {
+	if (!enabled) return;
+	sendEvent("captions.reconnecting", {
+		title: "Caption stream lost, reconnecting",
+	});
+}
