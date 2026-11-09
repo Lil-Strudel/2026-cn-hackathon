@@ -17,6 +17,7 @@ import (
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/httpserver"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/telemetry"
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/transcribe"
 )
 
 type Config struct {
@@ -75,7 +76,19 @@ func run() error {
 		return err
 	}
 
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb, es, vocab))
+	var transcriber transcribe.Transcriber = transcribe.NewOpenAI(cfg.OpenAIAPIKey)
+	if cfg.OpenAIAPIKey == "" {
+		slog.Warn("OPENAI_API_KEY is not set, captions come from the fake transcriber")
+		transcriber = transcribe.Fake{}
+	}
+	audio, err := newAudioHandler(ctx, transcriber, vocab, redisPublisher(rdb))
+	if err != nil {
+		return fmt.Errorf("audio handler: %w", err)
+	}
+	mux := newMux(rdb, es, vocab)
+	mux.Handle("GET /api/talks/{talkID}/audio", audio)
+
+	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
 }
 
 func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary) *http.ServeMux {
