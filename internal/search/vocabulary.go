@@ -34,7 +34,7 @@ var DefaultTerms = append(plainTerms(
 	"Argo CD", "Backstage", "CNCF", "Cilium", "containerd", "cosign", "Crossplane",
 	"Dash0", "eBPF", "Elasticsearch", "Envoy", "etcd", "Falco", "Flux",
 	"Grafana", "gRPC", "Helm", "Hubble", "Istio", "Jaeger", "KEDA", "Kibana",
-	"Knative", "KubeCon", "kubectl", "Kubernetes", "Linkerd", "OpenTelemetry",
+	"KubeCon", "kubectl", "Kubernetes", "Linkerd", "OpenTelemetry",
 	"Prometheus", "Sigstore", "SPIFFE", "Talos", "WebAssembly",
 ), Term{Term: "Gitar", Except: []string{
 	"play", "music", "song", "band", "chord", "acoustic", "electric", "bass",
