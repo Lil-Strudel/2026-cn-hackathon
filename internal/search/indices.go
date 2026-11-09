@@ -68,7 +68,8 @@ const captionsMapping = `{
       "start_ms":     { "type": "long" },
       "end_ms":       { "type": "long" },
       "text":         { "type": "text", "analyzer": "english" },
-      "whisper_text": { "type": "text", "index": false }
+      "whisper_text": { "type": "text", "index": false },
+      "corrections":  { "type": "object", "enabled": false }
     }
   }
 }`

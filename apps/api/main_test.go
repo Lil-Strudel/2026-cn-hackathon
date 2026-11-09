@@ -37,7 +37,7 @@ func TestHealthz(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mux := newMux(redis.NewClient(&redis.Options{}), es, vocab)
+	mux := newMux(redis.NewClient(&redis.Options{}), es, vocab, search.NewCaptions(es))
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
