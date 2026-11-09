@@ -67,6 +67,9 @@ The app runs at http://localhost:4000. Vite proxies `/api` to the api on `:4100`
 to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as the
 `infra/kibana` task in the dekit UI.
 
+On "Try correction", "Speak" transcribes your microphone without captioning any talk, and
+corrects what was heard when you stop.
+
 Without `OPENAI_API_KEY`, the api transcribes with a fake that turns every two seconds of audio
 into a canned line, misheard the way Whisper would, so the whole caption path and its
 corrections run without a key. Turn off "Correct terms" above a talk's captions to see them

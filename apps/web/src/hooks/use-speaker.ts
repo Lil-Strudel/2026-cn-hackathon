@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+	describeMicrophoneError,
 	type MicrophoneStream,
 	streamMicrophone,
 } from "~/lib/microphone-stream";
@@ -45,7 +46,7 @@ export function useSpeaker(talkId: string) {
 			recordSpeaker(talkId, "started");
 		} catch (cause) {
 			if (!mounted.current) return;
-			const message = describeStartError(cause);
+			const message = describeMicrophoneError(cause);
 			setStatus("idle");
 			setError(message);
 			recordSpeaker(talkId, "failed", message);
@@ -60,16 +61,4 @@ export function useSpeaker(talkId: string) {
 	}
 
 	return { status, error, start, stop };
-}
-
-function describeStartError(cause: unknown): string {
-	if (cause instanceof DOMException && cause.name === "NotAllowedError") {
-		return "Microphone access was blocked. Allow it in your browser's site settings and try again.";
-	}
-	if (cause instanceof DOMException && cause.name === "NotFoundError") {
-		return "No microphone was found.";
-	}
-	return cause instanceof Error
-		? cause.message
-		: "Could not start the microphone.";
 }

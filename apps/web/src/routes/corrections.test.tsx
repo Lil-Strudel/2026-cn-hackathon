@@ -1,8 +1,10 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as api from "~/lib/api";
+import * as microphone from "~/lib/microphone-stream";
 import { renderRoute } from "~/test/render-route";
 
+vi.mock("~/lib/microphone-stream", { spy: true });
 vi.mock("~/lib/api", { spy: true });
 
 beforeEach(() => {
@@ -84,4 +86,29 @@ test("shows the error when terms fail to load", async () => {
 	expect(
 		await list.findByText("Couldn't load terms: GET /api/vocabulary: 502"),
 	).toBeDefined();
+});
+
+test("what is said into the microphone is corrected when it stops", async () => {
+	let send: (line: microphone.Transcript) => void = () => {};
+	vi.mocked(microphone.dictate).mockImplementation(async (onTranscript) => {
+		send = onTranscript;
+		return { stop: vi.fn(), finish: vi.fn().mockResolvedValue(undefined) };
+	});
+	vi.mocked(api.correctText).mockResolvedValue({
+		text: "over Cilium",
+		segments: [{ text: "over " }, { text: "Cilium", heard: "silly um" }],
+	});
+	renderRoute("/corrections");
+
+	fireEvent.click(await screen.findByRole("button", { name: "Speak" }));
+	const stop = await screen.findByRole("button", { name: "Stop and correct" });
+	act(() => send({ id: "a", text: "over silly um", final: true }));
+	expect(
+		screen.getByLabelText<HTMLTextAreaElement>("What was heard").value,
+	).toBe("over silly um");
+
+	fireEvent.click(stop);
+
+	expect(await screen.findByText("Cilium")).toBeDefined();
+	expect(vi.mocked(api.correctText).mock.calls[0]?.[0]).toBe("over silly um");
 });
