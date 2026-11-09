@@ -32,6 +32,16 @@ type Correction struct {
 	Heard string `json:"heard"`
 }
 
+// MarshalJSON sends missing corrections as an empty array, because the web
+// client spreads line.corrections and throws on null.
+func (c Caption) MarshalJSON() ([]byte, error) {
+	type wire Caption
+	if c.Corrections == nil {
+		c.Corrections = []Correction{}
+	}
+	return json.Marshal(wire(c))
+}
+
 // FormatTime matches JavaScript's toISOString. Clients order lines by
 // comparing At as text, which RFC 3339's trimmed fractions would break.
 func FormatTime(t time.Time) string {
