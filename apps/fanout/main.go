@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -53,9 +54,11 @@ func run() error {
 		return err
 	}
 
-	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
+	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb))
+}
+
+func newMux(rdb *redis.Client) *http.ServeMux {
+	return httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 	})
-
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
 }
