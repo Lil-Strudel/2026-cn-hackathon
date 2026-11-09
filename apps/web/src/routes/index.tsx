@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { HighlightedText } from "~/components/highlighted-text";
 import { TalkCard } from "~/components/talk-card";
@@ -25,12 +25,20 @@ function Home() {
 
 	return (
 		<main className="mx-auto flex max-w-2xl flex-col gap-10 p-4 sm:p-8">
-			<div className="flex flex-col gap-2">
-				<h1 className="text-2xl font-semibold tracking-tight">Talks</h1>
-				<p className="text-sm text-muted-foreground">
-					Follow a talk with live captions, or search everything that has been
-					said.
-				</p>
+			<div className="flex flex-wrap items-start justify-between gap-4">
+				<div className="flex flex-col gap-2">
+					<h1 className="text-2xl font-semibold tracking-tight">Talks</h1>
+					<p className="text-sm text-muted-foreground">
+						Follow a talk with live captions, or search everything that has been
+						said.
+					</p>
+				</div>
+				<Button asChild>
+					<Link to="/talks/new">
+						<Plus aria-hidden />
+						New talk
+					</Link>
+				</Button>
 			</div>
 
 			{talks.isError ? (

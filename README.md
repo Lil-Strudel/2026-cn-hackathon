@@ -57,7 +57,9 @@ Until the api serves talks, the web app reads sample talks from
 
 To caption a talk, open a live one such as http://localhost:4000/talks/understanding-kubernetes,
 choose "Caption this talk" and allow the microphone. Everyone on the talk page sees the captions
-as you speak, and people who join later get the earlier lines too.
+as you speak, and people who join later get the earlier lines too. "New talk" on the home page
+starts a live talk of your own and opens it for captioning; with fixtures it is kept in the
+browser's `localStorage`.
 
 The app runs at http://localhost:4000. Vite proxies `/api` to the api on `:4100` and `/events`
 to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as the

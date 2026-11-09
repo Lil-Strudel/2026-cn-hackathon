@@ -70,6 +70,14 @@ export function recordCaptionsReconnecting() {
 	});
 }
 
+export function recordTalkCreated(talkId: string) {
+	if (!enabled) return;
+	sendEvent("talk.created", {
+		title: "Talk created",
+		attributes: { "app.talk.id": talkId },
+	});
+}
+
 export type SpeakerEvent = "started" | "stopped" | "failed";
 
 export function recordSpeaker(

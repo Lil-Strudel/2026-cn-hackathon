@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { search } from "./talks-fixtures";
+import { addTalk, findTalk, search } from "./talks-fixtures";
 
 test("live talks do not return transcript search hits", () => {
 	expect(
@@ -17,4 +17,16 @@ test("finished talks remain searchable by transcript", () => {
 	expect(hit?.highlights).toContainEqual(
 		expect.objectContaining({ field: "transcript" }),
 	);
+});
+
+test("a new talk goes live under an id made from its title", () => {
+	const talk = addTalk({
+		title: "Understanding Kubernetes",
+		speaker: "Ada Lovelace",
+		description: "",
+	});
+
+	expect(talk.id).toBe("understanding-kubernetes-2");
+	expect(talk.status).toBe("live");
+	expect(findTalk(talk.id)).toEqual(talk);
 });
