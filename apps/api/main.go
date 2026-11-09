@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/redis/go-redis/extra/redisotel/v9"
@@ -89,7 +90,11 @@ func run() error {
 	mux := newMux(rdb, es, vocab, history)
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
 
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
+	err = httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
+	waitCtx, cancel := context.WithTimeout(context.Background(), drainTimeout+time.Second)
+	defer cancel()
+	audio.Wait(waitCtx)
+	return err
 }
 
 func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary, history *search.Captions) *http.ServeMux {
