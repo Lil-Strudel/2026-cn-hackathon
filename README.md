@@ -50,6 +50,10 @@ cp .env.example .env  # optional: OpenAI key, Dash0 endpoint
 pnpm dev              # Elasticsearch, Redis, api, fanout and web under dekit
 ```
 
+Until the api serves talks, the web app reads sample talks and simulated captions from
+`apps/web/src/lib/*-fixtures.ts`. Set `VITE_API_FIXTURES=false` in `.env` to call the real `/api`
+and `/events` endpoints instead.
+
 The app runs at http://localhost:4000. Vite proxies `/api` to the api on `:4100` and `/events`
 to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as the
 `infra/kibana` task in the dekit UI.

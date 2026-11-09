@@ -75,6 +75,10 @@ func run() error {
 		return err
 	}
 
+	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb, es, vocab))
+}
+
+func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary) *http.ServeMux {
 	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 		"elasticsearch": func(ctx context.Context) error {
@@ -107,7 +111,7 @@ func run() error {
 		})
 	})
 
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
+	return mux
 }
 
 func newRedis(url string) (*redis.Client, error) {

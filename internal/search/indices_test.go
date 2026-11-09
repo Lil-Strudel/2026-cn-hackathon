@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +24,13 @@ func TestMappingsAreValidJSON(t *testing.T) {
 func TestSoundMatchesSplitTerms(t *testing.T) {
 	es, ctx := testClient(t)
 	prefix := fmt.Sprintf("test-%d-", time.Now().UnixNano())
-	t.Cleanup(func() { _, _ = es.Indices.Delete(prefix + "*").Do(context.Background()) })
+	t.Cleanup(func() {
+		names := make([]string, 0, len(indices))
+		for name := range indices {
+			names = append(names, prefix+name)
+		}
+		_, _ = es.Indices.Delete(strings.Join(names, ",")).Do(context.Background())
+	})
 
 	if err := ensureIndices(ctx, es, prefix); err != nil {
 		t.Fatal(err)
