@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -175,5 +176,71 @@ func TestAudioRejectsInvalidTalkID(t *testing.T) {
 	}
 	if err == nil || res == nil || res.StatusCode != http.StatusNotFound {
 		t.Fatalf("got %v, %v", res, err)
+	}
+}
+
+// trailingTranscriber holds back its only line until Close, like a speaker
+// cut off mid-sentence whose last words are still being transcribed.
+type trailingTranscriber struct{}
+
+func (trailingTranscriber) Start(context.Context, transcribe.Options) (transcribe.Session, error) {
+	return &trailingSession{events: make(chan transcribe.Event, 1)}, nil
+}
+
+type trailingSession struct{ events chan transcribe.Event }
+
+func (s *trailingSession) Append(context.Context, []byte) error { return nil }
+func (s *trailingSession) Events() <-chan transcribe.Event      { return s.events }
+
+func (s *trailingSession) Close(context.Context) error {
+	time.Sleep(100 * time.Millisecond)
+	s.events <- transcribe.Event{SegmentID: "last", Text: "Thank you.", Final: true}
+	close(s.events)
+	return nil
+}
+
+func TestShutdownWaitsForTheLastCaption(t *testing.T) {
+	shutdown, stopServer := context.WithCancel(t.Context())
+	requests, cancelRequests := context.WithCancel(t.Context())
+
+	var mu sync.Mutex
+	var published []captions.Caption
+	publish := func(ctx context.Context, c captions.Caption) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		published = append(published, c)
+		return nil
+	}
+	audio, err := newAudioHandler(shutdown, trailingTranscriber{}, fakeVocabulary{}, publish)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/talks/{talkID}/audio", audio)
+	server := httptest.NewUnstartedServer(mux)
+	server.Config.BaseContext = func(net.Listener) context.Context { return requests }
+	server.Start()
+	t.Cleanup(server.Close)
+
+	conn := dial(t, "ws"+strings.TrimPrefix(server.URL, "http")+"/api/talks/demo/audio")
+	go func() { _, _, _ = conn.Read(context.Background()) }()
+
+	// What httpserver.Run does on SIGTERM: shut down, then cancel request contexts.
+	stopServer()
+	cancelRequests()
+
+	wait, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	audio.Wait(wait)
+	if wait.Err() != nil {
+		t.Fatal("Wait timed out")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(published) != 1 || published[0].Text != "Thank you." {
+		t.Fatalf("the last caption was lost: %+v", published)
 	}
 }

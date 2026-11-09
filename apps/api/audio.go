@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -53,6 +54,7 @@ type audioHandler struct {
 	transcriber transcribe.Transcriber
 	corrector   corrector
 	publish     publishFunc
+	active      sync.WaitGroup
 
 	tracer     trace.Tracer
 	sessions   metric.Int64UpDownCounter
@@ -104,6 +106,8 @@ func (a *audioHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	a.active.Add(1)
+	defer a.active.Done()
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return
@@ -111,16 +115,22 @@ func (a *audioHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = conn.CloseNow() }()
 	conn.SetReadLimit(maxAudioFrame)
 
+	// The server cancels request contexts once its drain ends, and it doesn't
+	// wait for hijacked connections, so the session runs on its own context.
+	// The socket closing on shutdown and drainTimeout bound how long it lives,
+	// and Wait keeps the process up for it.
+	ctx := context.WithoutCancel(r.Context())
+
 	// Segment IDs restart with every transcription session, so line IDs are
 	// prefixed with one per speaker connection.
 	sessionID := rand.Text()
-	ctx, span := a.tracer.Start(r.Context(), "caption.session", trace.WithAttributes(
+	ctx, span := a.tracer.Start(ctx, "caption.session", trace.WithAttributes(
 		attribute.String("talk.id", talkID),
 		attribute.String("caption.session_id", sessionID),
 	))
 	defer span.End()
 	a.sessions.Add(ctx, 1)
-	defer a.sessions.Add(context.WithoutCancel(ctx), -1)
+	defer a.sessions.Add(ctx, -1)
 	slog.InfoContext(ctx, "speaker connected", "talk_id", talkID, "session_id", sessionID)
 
 	session, err := a.transcriber.Start(ctx, transcribe.Options{Language: "en"})
@@ -156,7 +166,7 @@ func (a *audioHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	status, reason := a.relayAudio(ctx, conn, session)
 
-	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), drainTimeout)
+	drainCtx, cancel := context.WithTimeout(ctx, drainTimeout)
 	defer cancel()
 	if err := session.Close(drainCtx); err != nil {
 		slog.WarnContext(ctx, "close transcription", "talk_id", talkID, "err", err)
@@ -164,6 +174,20 @@ func (a *audioHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	<-published
 	_ = conn.Close(status, reason)
 	slog.InfoContext(ctx, "speaker disconnected", "talk_id", talkID, "session_id", sessionID)
+}
+
+// Wait blocks until every speaker session has finished publishing its last
+// captions, or ctx is done.
+func (a *audioHandler) Wait(ctx context.Context) {
+	done := make(chan struct{})
+	go func() {
+		a.active.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 // relayAudio forwards audio frames until the speaker hangs up or the server
