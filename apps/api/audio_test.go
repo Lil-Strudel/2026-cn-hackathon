@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,19 @@ func (fakeVocabulary) Correct(_ context.Context, text string) (search.Correction
 type recorder struct {
 	mu        sync.Mutex
 	published []captions.Caption
+	stored    []storedCaption
+}
+
+type storedCaption struct {
+	line  captions.Caption
+	heard string
+}
+
+func (r *recorder) Store(_ context.Context, line captions.Caption, heard string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.stored = append(r.stored, storedCaption{line, heard})
+	return nil
 }
 
 func (r *recorder) publish(_ context.Context, c captions.Caption) error {
@@ -54,7 +68,7 @@ func (r *recorder) captions() []captions.Caption {
 func startAPI(t *testing.T, shutdown context.Context) (*recorder, func(talkID string) string) {
 	t.Helper()
 	rec := &recorder{}
-	audio, err := newAudioHandler(shutdown, transcribe.Fake{}, fakeVocabulary{}, rec.publish)
+	audio, err := newAudioHandler(shutdown, transcribe.Fake{}, fakeVocabulary{}, rec.publish, rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,6 +141,15 @@ func TestAudioIsTranscribedCorrectedAndPublished(t *testing.T) {
 	if !strings.Contains(final.Text, "over Cilium and eBPF") || !reflect.DeepEqual(final.Corrections, want) {
 		t.Errorf("final not corrected: %+v", final)
 	}
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.stored) != 2 {
+		t.Fatalf("want only the 2 finals stored, got %d", len(rec.stored))
+	}
+	if s := rec.stored[1]; !reflect.DeepEqual(s.line, final) || !strings.Contains(s.heard, "over silly um and") {
+		t.Errorf("stored %+v", s)
+	}
 }
 
 func TestCaptionCorrectionsCountUTF16(t *testing.T) {
@@ -179,6 +202,20 @@ func TestAudioRejectsInvalidTalkID(t *testing.T) {
 	}
 }
 
+func TestFinalsAreStoredWhenPublishingFails(t *testing.T) {
+	rec := &recorder{}
+	failing := func(context.Context, captions.Caption) error { return errors.New("redis down") }
+	audio, err := newAudioHandler(t.Context(), transcribe.Fake{}, fakeVocabulary{}, failing, rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audio.publishEvent(t.Context(), captions.Caption{TalkID: "demo", ID: "s-1", Text: "over silly um", Final: true}, time.Time{})
+
+	if len(rec.stored) != 1 || rec.stored[0].line.Text != "over Cilium" {
+		t.Fatalf("stored %+v", rec.stored)
+	}
+}
+
 // trailingTranscriber holds back its only line until Close, like a speaker
 // cut off mid-sentence whose last words are still being transcribed.
 type trailingTranscriber struct{}
@@ -214,7 +251,7 @@ func TestShutdownWaitsForTheLastCaption(t *testing.T) {
 		published = append(published, c)
 		return nil
 	}
-	audio, err := newAudioHandler(shutdown, trailingTranscriber{}, fakeVocabulary{}, publish)
+	audio, err := newAudioHandler(shutdown, trailingTranscriber{}, fakeVocabulary{}, publish, &recorder{})
 	if err != nil {
 		t.Fatal(err)
 	}

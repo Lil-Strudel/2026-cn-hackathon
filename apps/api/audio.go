@@ -33,6 +33,10 @@ type corrector interface {
 	Correct(ctx context.Context, text string) (search.Correction, error)
 }
 
+type captionStore interface {
+	Store(ctx context.Context, line captions.Caption, heard string) error
+}
+
 type publishFunc func(ctx context.Context, c captions.Caption) error
 
 func redisPublisher(rdb *redis.Client) publishFunc {
@@ -45,8 +49,8 @@ func redisPublisher(rdb *redis.Client) publishFunc {
 	}
 }
 
-// audioHandler takes a speaker's microphone over a WebSocket, transcribes it
-// and publishes the captions. Binary frames carry mono PCM16 at
+// audioHandler takes a speaker's microphone over a WebSocket, transcribes it,
+// publishes the captions and stores the final lines. Binary frames carry mono PCM16 at
 // transcribe.SampleRate. The speaker watches captions over SSE like everyone
 // else, so nothing is sent back on the socket.
 type audioHandler struct {
@@ -54,6 +58,7 @@ type audioHandler struct {
 	transcriber transcribe.Transcriber
 	corrector   corrector
 	publish     publishFunc
+	store       captionStore
 	active      sync.WaitGroup
 
 	tracer     trace.Tracer
@@ -63,7 +68,7 @@ type audioHandler struct {
 	latency    metric.Float64Histogram
 }
 
-func newAudioHandler(shutdown context.Context, t transcribe.Transcriber, c corrector, publish publishFunc) (*audioHandler, error) {
+func newAudioHandler(shutdown context.Context, t transcribe.Transcriber, c corrector, publish publishFunc, store captionStore) (*audioHandler, error) {
 	meter := otel.Meter(instrumentationName)
 	sessions, err := meter.Int64UpDownCounter("captions.sessions.active",
 		metric.WithDescription("Speakers currently streaming audio"), metric.WithUnit("{session}"))
@@ -91,6 +96,7 @@ func newAudioHandler(shutdown context.Context, t transcribe.Transcriber, c corre
 		transcriber: t,
 		corrector:   c,
 		publish:     publish,
+		store:       store,
 		tracer:      otel.Tracer(instrumentationName),
 		sessions:    sessions,
 		audioBytes:  audioBytes,
@@ -230,6 +236,7 @@ func (a *audioHandler) publishEvent(ctx context.Context, c captions.Caption, com
 	))
 	defer span.End()
 
+	heard := c.Text
 	c.Corrections = []captions.Correction{}
 	if c.Final {
 		c.Text, c.Corrections = a.correct(ctx, c.Text)
@@ -242,9 +249,19 @@ func (a *audioHandler) publishEvent(ctx context.Context, c captions.Caption, com
 		slog.ErrorContext(ctx, "publish caption", "talk_id", c.TalkID, "err", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "publish caption")
-		return
+	} else {
+		a.published.Add(ctx, 1, metric.WithAttributes(attribute.Bool("caption.final", c.Final)))
 	}
-	a.published.Add(ctx, 1, metric.WithAttributes(attribute.Bool("caption.final", c.Final)))
+
+	// Stored even when publishing failed, so the transcript keeps lines live
+	// viewers missed.
+	if c.Final {
+		if err := a.store.Store(ctx, c, heard); err != nil {
+			slog.ErrorContext(ctx, "store caption", "talk_id", c.TalkID, "err", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "store caption")
+		}
+	}
 }
 
 // correct runs only on final lines: each correction costs Elasticsearch

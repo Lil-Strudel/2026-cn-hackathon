@@ -76,17 +76,18 @@ func run() error {
 	if err := vocab.Add(ctx, search.DefaultTerms); err != nil {
 		return err
 	}
+	history := search.NewCaptions(es)
 
 	var transcriber transcribe.Transcriber = transcribe.NewOpenAI(cfg.OpenAIAPIKey)
 	if cfg.OpenAIAPIKey == "" {
 		slog.Warn("OPENAI_API_KEY is not set, captions come from the fake transcriber")
 		transcriber = transcribe.Fake{}
 	}
-	audio, err := newAudioHandler(ctx, transcriber, vocab, redisPublisher(rdb))
+	audio, err := newAudioHandler(ctx, transcriber, vocab, redisPublisher(rdb), history)
 	if err != nil {
 		return fmt.Errorf("audio handler: %w", err)
 	}
-	mux := newMux(rdb, es, vocab)
+	mux := newMux(rdb, es, vocab, history)
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
 
 	err = httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
@@ -96,7 +97,7 @@ func run() error {
 	return err
 }
 
-func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary) *http.ServeMux {
+func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary, history *search.Captions) *http.ServeMux {
 	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 		"elasticsearch": func(ctx context.Context) error {
@@ -109,6 +110,7 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Voca
 	})
 	mux.HandleFunc("POST /api/corrections", handleCorrect(vocab))
 	mux.HandleFunc("POST /api/vocabulary", handleAddTerms(vocab))
+	mux.HandleFunc("GET /api/talks/{talkID}/captions", handleCaptionHistory(history))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {
 		info, err := es.Info().Do(r.Context())
 		if err != nil {
