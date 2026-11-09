@@ -16,3 +16,14 @@ export function formatTime(iso: string) {
 export function formatDateTime(iso: string) {
 	return dateTime.format(new Date(iso));
 }
+
+const clock = new Intl.DateTimeFormat(undefined, {
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+	hourCycle: "h23",
+});
+
+export function formatClock(iso: string) {
+	return clock.format(new Date(iso));
+}

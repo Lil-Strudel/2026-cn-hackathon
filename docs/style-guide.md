@@ -149,6 +149,7 @@ All UI is built from shadcn/ui components in `apps/web/src/components/ui/`. See 
 | `HighlightedText` | `highlighted-text.tsx` | native `mark`                         | Renders an Elasticsearch highlight fragment, turning `<mark>` into `bg-highlight` without parsing any other markup                                                                                                                                                      |
 | `CaptionText`     | `caption-text.tsx`     | native `mark`                         | One caption line. Corrected terms get `bg-highlight`, a `title` and visually hidden "corrected from …" text naming what Whisper heard                                                                                                                                   |
 | `LiveCaptions`    | `live-captions.tsx`    | `ToggleGroup`, `Card`                 | Live captions with a Transcript / Large captions toggle remembered in `localStorage` (`caption-view`). Only finished lines are inside the `role="log"` live region. The transcript follows new lines unless the reader scrolls up, then offers "Jump to latest"         |
+| `FinishedTalk`    | `finished-talk.tsx`    | `Card`                                | Notes and summary (labelled "Written by AI from the transcript") beside a transcript in minute-long paragraphs under `font-mono` timestamps. A `#line-…` link marks its line with `bg-highlight` and moves focus to it                                                  |
 
 ## 7. Motion and accessibility
 

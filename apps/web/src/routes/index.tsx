@@ -1,14 +1,16 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { HighlightedText } from "~/components/highlighted-text";
 import { TalkCard } from "~/components/talk-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import type { HighlightField, Talk } from "~/lib/talks";
+import { formatClock } from "~/lib/format";
+import type { Highlight, HighlightField, Talk } from "~/lib/talks";
 import { fetchTalks, searchTalks } from "~/lib/talks";
 import { recordSearch } from "~/lib/telemetry";
+import { lineAnchor } from "~/lib/transcript";
 
 export const Route = createFileRoute("/")({
 	validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -175,9 +177,7 @@ function SearchResults({ query }: { query: string }) {
 							.filter((highlight) => highlight.field !== "title")
 							.map((highlight) => (
 								<li key={`${highlight.field}-${highlight.fragment}`}>
-									<span className="font-medium">
-										{fieldLabels[highlight.field]}:{" "}
-									</span>
+									<HighlightSource talkId={talk.id} highlight={highlight} />
 									<HighlightedText fragment={highlight.fragment} />
 								</li>
 							))}
@@ -185,6 +185,35 @@ function SearchResults({ query }: { query: string }) {
 				</TalkCard>
 			))}
 		</div>
+	);
+}
+
+function HighlightSource({
+	talkId,
+	highlight,
+}: {
+	talkId: string;
+	highlight: Highlight;
+}) {
+	const label = fieldLabels[highlight.field];
+	if (!highlight.lineId || !highlight.at)
+		return <span className="font-medium">{label}: </span>;
+
+	// `relative` lifts the link above the card's stretched title link.
+	return (
+		<>
+			<Link
+				to="/talks/$talkId"
+				params={{ talkId }}
+				hash={lineAnchor(highlight.lineId)}
+				className="relative rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+			>
+				{label} at{" "}
+				<time dateTime={highlight.at} className="font-mono tabular-nums">
+					{formatClock(highlight.at)}
+				</time>
+			</Link>{" "}
+		</>
 	);
 }
 

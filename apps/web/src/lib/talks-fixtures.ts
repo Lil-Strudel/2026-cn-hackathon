@@ -1,4 +1,11 @@
-import type { Highlight, HighlightField, SearchHit, Talk } from "~/lib/talks";
+import type {
+	Highlight,
+	HighlightField,
+	SearchHit,
+	Talk,
+	TalkNotes,
+} from "~/lib/talks";
+import { transcript } from "~/lib/transcript-fixtures";
 
 const today = (hours: number, minutes: number) => {
 	const date = new Date();
@@ -75,6 +82,52 @@ export function findTalk(id: string): Talk {
 	return talk;
 }
 
+const notes: Record<string, TalkNotes> = {
+	"gitops-without-tears": {
+		summary:
+			"Lena argued that clusters should pull their state rather than have it pushed. Flux applies signed OCI artifacts built by CI, verifying each cosign signature first, so the cluster runs exactly what was reviewed and a rollback is a Git revert. The closing section covered keeping secrets out of the repository.",
+		notes: [
+			"The cluster pulls from Git; nobody pushes into it.",
+			"Flux can watch an OCI artifact instead of a branch, so it applies exactly what CI built.",
+			"Unsigned or tampered artifacts are ignored after the cosign check.",
+			"Rollback is a revert; cluster history is repository history.",
+		],
+	},
+	"observability-from-day-one": {
+		summary:
+			"Tomás walked through instrumenting a new service with OpenTelemetry before it has users. Traces come first because they show where time goes, logs carry the trace ID so they link back, and metrics are kept to the few questions asked every day.",
+		notes: [
+			"Instrument before the first outage, not after.",
+			"Traces first, then logs with trace IDs, then a small set of metrics.",
+			"Delete dashboards nobody opens.",
+		],
+	},
+	"autoscaling-on-events": {
+		summary:
+			"Aiko showed why CPU is a poor scaling signal for queue workers and how KEDA scales on queue depth or connected clients by feeding external metrics to the HPA. Scaling to zero saves money but brings cold starts, and a cooldown stops the deployment from flapping.",
+		notes: [
+			"Scale on the work waiting, not on CPU.",
+			"KEDA feeds external metrics to the horizontal pod autoscaler.",
+			"Set a cooldown to avoid flapping; plan for cold starts at zero.",
+		],
+	},
+	"search-that-understands-you": {
+		summary:
+			"Daniel compared keyword and vector search in Elasticsearch and showed how reciprocal rank fusion combines them without hand-tuned weights. Phonetic analysis catches misheard and misspelled names, and relevance should be measured on real user queries.",
+		notes: [
+			"BM25 for exact terms, dense vectors for meaning; use both.",
+			"Reciprocal rank fusion merges the two lists without tuning weights.",
+			"Phonetic analysis helps with names speech recognition gets wrong.",
+		],
+	},
+};
+
+const pendingNotes: TalkNotes = { summary: null, notes: null };
+
+export function notesFor(id: string): TalkNotes {
+	return notes[findTalk(id).id] ?? pendingNotes;
+}
+
 const escapeRegExp = (text: string) =>
 	text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -87,18 +140,39 @@ function highlight(
 ): Highlight | null {
 	const first = text.search(pattern);
 	if (first === -1) return null;
-	const start = Math.max(0, first - fragmentRadius);
-	const end = Math.min(text.length, first + fragmentRadius * 2);
+	const start =
+		first <= fragmentRadius ? 0 : text.indexOf(" ", first - fragmentRadius) + 1;
+	const cut = text.lastIndexOf(" ", first + fragmentRadius * 2);
+	const end =
+		first + fragmentRadius * 2 >= text.length || cut <= first
+			? text.length
+			: cut;
 	const excerpt = `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 	return { field, fragment: excerpt.replace(pattern, "<mark>$&</mark>") };
 }
 
+const transcriptHitsPerTalk = 3;
+
 export function search(query: string): SearchHit[] {
 	const pattern = new RegExp(escapeRegExp(query.trim()), "gi");
 	return talks.flatMap((talk) => {
+		const { summary, notes } = notesFor(talk.id);
+		const transcriptHits =
+			talk.status !== "finished"
+				? []
+				: transcript(talk.id, talk.startedAt)
+						.map((line) => {
+							const hit = highlight("transcript", line.text, pattern);
+							return hit && { ...hit, lineId: line.id, at: line.at };
+						})
+						.filter((h) => h !== null)
+						.slice(0, transcriptHitsPerTalk);
 		const highlights = [
 			highlight("title", talk.title, pattern),
 			highlight("description", talk.description, pattern),
+			summary === null ? null : highlight("summary", summary, pattern),
+			...(notes ?? []).map((note) => highlight("notes", note, pattern)),
+			...transcriptHits,
 		].filter((h) => h !== null);
 		return highlights.length > 0 ? [{ talk, highlights }] : [];
 	});
