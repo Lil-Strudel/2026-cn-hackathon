@@ -122,6 +122,9 @@ func TestServeEventsStreamsCaptions(t *testing.T) {
 	h.dispatch(t.Context(), encode(t, captions.Caption{TalkID: "demo", ID: "s1", Text: "hello", Final: true}))
 	readUntil("event: caption")
 	data := strings.TrimPrefix(readUntil("data: "), "data: ")
+	if !strings.Contains(data, `"corrections":[]`) {
+		t.Fatalf("corrections must reach the client as an array: %s", data)
+	}
 	var got captions.Caption
 	if err := json.Unmarshal([]byte(data), &got); err != nil {
 		t.Fatal(err)

@@ -2,6 +2,7 @@ package captions
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -76,5 +77,23 @@ func TestFormatTimeSortsAsText(t *testing.T) {
 	}
 	if earlier >= later {
 		t.Fatalf("%q should sort before %q", earlier, later)
+	}
+}
+
+func TestCaptionWithoutCorrectionsSendsAnEmptyArray(t *testing.T) {
+	data, err := json.Marshal(Caption{TalkID: "demo", ID: "s1", Text: "partial"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"corrections":[]`) {
+		t.Fatalf("got %s", data)
+	}
+
+	envelope, err := Encode(context.Background(), Caption{TalkID: "demo", ID: "s1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(envelope), `"corrections":[]`) {
+		t.Fatalf("envelope got %s", envelope)
 	}
 }
