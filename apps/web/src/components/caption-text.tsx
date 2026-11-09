@@ -1,6 +1,14 @@
-import { type CaptionLine, splitCorrections } from "~/lib/captions";
+import { type CaptionLine, heardText, splitCorrections } from "~/lib/captions";
 
-export function CaptionText({ line }: { line: CaptionLine }) {
+export function CaptionText({
+	line,
+	corrected = true,
+}: {
+	line: CaptionLine;
+	corrected?: boolean;
+}) {
+	if (!corrected) return heardText(line);
+
 	return splitCorrections(line).map(({ text, heard, offset }) =>
 		heard ? (
 			<mark

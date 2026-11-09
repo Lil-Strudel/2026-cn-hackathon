@@ -55,6 +55,14 @@ export function recordCaptionView(view: string) {
 	});
 }
 
+export function recordCorrectionsShown(shown: boolean) {
+	if (!enabled) return;
+	sendEvent("captions.corrections_toggled", {
+		title: `Caption corrections turned ${shown ? "on" : "off"}`,
+		attributes: { "app.captions.corrections_shown": shown },
+	});
+}
+
 export function recordFirstCaption(waitMs: number) {
 	if (!enabled) return;
 	sendEvent("captions.first_line", {

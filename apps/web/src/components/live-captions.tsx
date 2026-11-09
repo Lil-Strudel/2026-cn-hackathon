@@ -1,13 +1,16 @@
 import { ArrowDown, Captions, ScrollText } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { CaptionText } from "~/components/caption-text";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { Label } from "~/components/ui/label";
+import { Switch } from "~/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { useCaptionView } from "~/hooks/use-caption-view";
 import { useCaptions } from "~/hooks/use-captions";
 import { type CaptionView, isCaptionView } from "~/lib/caption-view";
 import type { CaptionLine } from "~/lib/captions";
+import { recordCorrectionsShown } from "~/lib/telemetry";
 import { cn } from "~/lib/utils";
 
 const statusText = {
@@ -20,6 +23,7 @@ const statusText = {
 export function LiveCaptions({ talkId }: { talkId: string }) {
 	const { lines, status, historyError } = useCaptions(talkId);
 	const [view, setView] = useCaptionView();
+	const [corrected, setCorrected] = useState(true);
 	const finished = lines.filter((line) => line.final);
 	const partial = lines.findLast((line) => !line.final);
 	const pinned = usePinnedToBottom(lines, view === "transcript");
@@ -30,7 +34,16 @@ export function LiveCaptions({ talkId }: { talkId: string }) {
 				<h2 id="captions-heading" className="text-lg font-semibold">
 					Live captions
 				</h2>
-				<ViewToggle view={view} onChange={setView} />
+				<div className="flex flex-wrap items-center gap-4">
+					<CorrectionSwitch
+						corrected={corrected}
+						onChange={(next) => {
+							setCorrected(next);
+							recordCorrectionsShown(next);
+						}}
+					/>
+					<ViewToggle view={view} onChange={setView} />
+				</div>
 			</div>
 
 			<p role="status" className="text-sm text-muted-foreground empty:hidden">
@@ -43,9 +56,17 @@ export function LiveCaptions({ talkId }: { talkId: string }) {
 			</p>
 
 			{view === "transcript" ? (
-				<Transcript finished={finished} partial={partial} />
+				<Transcript
+					finished={finished}
+					partial={partial}
+					corrected={corrected}
+				/>
 			) : (
-				<LargeCaptions finished={finished} partial={partial} />
+				<LargeCaptions
+					finished={finished}
+					partial={partial}
+					corrected={corrected}
+				/>
 			)}
 
 			{view === "transcript" && !pinned.atBottom && (
@@ -59,6 +80,22 @@ export function LiveCaptions({ talkId }: { talkId: string }) {
 				</Button>
 			)}
 		</section>
+	);
+}
+
+function CorrectionSwitch({
+	corrected,
+	onChange,
+}: {
+	corrected: boolean;
+	onChange: (corrected: boolean) => void;
+}) {
+	const id = useId();
+	return (
+		<div className="flex items-center gap-2">
+			<Switch id={id} checked={corrected} onCheckedChange={onChange} />
+			<Label htmlFor={id}>Correct terms</Label>
+		</div>
 	);
 }
 
@@ -95,24 +132,32 @@ function ViewToggle({
 type CaptionsProps = {
 	finished: CaptionLine[];
 	partial: CaptionLine | undefined;
+	corrected: boolean;
 };
 
 // Only finished lines sit inside the live region, so screen readers announce whole
-// sentences instead of every word as it is recognised.
-function Transcript({ finished, partial }: CaptionsProps) {
+// sentences instead of every word as it is recognised. The region is keyed on
+// `corrected` so flipping the switch swaps it whole, rather than rewriting every
+// line in place, which a screen reader would read out again.
+function Transcript({ finished, partial, corrected }: CaptionsProps) {
 	return (
 		<Card className="px-6 py-6">
 			<div className="flex max-w-[65ch] flex-col gap-3 text-caption">
-				<div role="log" aria-label="Captions" className="flex flex-col gap-3">
+				<div
+					key={String(corrected)}
+					role="log"
+					aria-label="Captions"
+					className="flex flex-col gap-3"
+				>
 					{finished.map((line) => (
 						<p key={line.id}>
-							<CaptionText line={line} />
+							<CaptionText line={line} corrected={corrected} />
 						</p>
 					))}
 				</div>
 				{partial && (
 					<p>
-						<CaptionText line={partial} />
+						<CaptionText line={partial} corrected={corrected} />
 					</p>
 				)}
 				{finished.length === 0 && !partial && (
@@ -127,13 +172,18 @@ function Transcript({ finished, partial }: CaptionsProps) {
 
 const largeLines = 2;
 
-function LargeCaptions({ finished, partial }: CaptionsProps) {
+function LargeCaptions({ finished, partial, corrected }: CaptionsProps) {
 	const recent = finished.slice(partial ? -(largeLines - 1) : -largeLines);
 
 	return (
 		<Card className="min-h-96 justify-center px-6 py-10 sm:px-12">
 			<div className="mx-auto flex max-w-4xl flex-col gap-6 text-center text-3xl leading-snug sm:text-4xl">
-				<div role="log" aria-label="Captions" className="flex flex-col gap-6">
+				<div
+					key={String(corrected)}
+					role="log"
+					aria-label="Captions"
+					className="flex flex-col gap-6"
+				>
 					{recent.map((line, index) => (
 						<p
 							key={line.id}
@@ -142,13 +192,13 @@ function LargeCaptions({ finished, partial }: CaptionsProps) {
 									"text-muted-foreground",
 							)}
 						>
-							<CaptionText line={line} />
+							<CaptionText line={line} corrected={corrected} />
 						</p>
 					))}
 				</div>
 				{partial && (
 					<p>
-						<CaptionText line={partial} />
+						<CaptionText line={partial} corrected={corrected} />
 					</p>
 				)}
 				{recent.length === 0 && !partial && (
