@@ -141,6 +141,7 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Voca
 	mux.HandleFunc("GET /api/talks", handleListTalks(talks))
 	mux.HandleFunc("POST /api/talks", handleCreateTalk(talks))
 	mux.HandleFunc("GET /api/talks/{talkID}", handleGetTalk(talks))
+	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(talks))
 	mux.HandleFunc("GET /api/search", handleSearchTalks(talks))
 	mux.HandleFunc("GET /api/talks/{talkID}/captions", handleCaptionHistory(history))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {

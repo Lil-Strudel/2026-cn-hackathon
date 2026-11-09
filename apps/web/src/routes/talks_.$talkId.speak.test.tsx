@@ -1,6 +1,7 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import * as captions from "~/lib/captions";
+import * as talks from "~/lib/talks";
 import { renderRoute } from "~/test/render-route";
 import { mockTalksApi } from "~/test/talks";
 
@@ -19,6 +20,33 @@ test("a live talk links to captioning it", async () => {
 	expect(link.getAttribute("href")).toBe(
 		"/talks/understanding-kubernetes/speak",
 	);
+});
+
+test("ending a live talk turns it into a past talk", async () => {
+	renderRoute("/talks/understanding-kubernetes");
+	fireEvent.click(await screen.findByRole("button", { name: "End talk" }));
+
+	expect(await screen.findByRole("heading", { name: "Notes" })).toBeDefined();
+	expect(talks.endTalk).toHaveBeenCalledWith("understanding-kubernetes");
+	expect(screen.queryByRole("link", { name: "Caption this talk" })).toBeNull();
+	expect(screen.queryByRole("button", { name: "End talk" })).toBeNull();
+	expect(screen.getByRole("status").textContent).toBe("This talk has ended.");
+	expect(document.activeElement).toBe(
+		screen.getByRole("heading", { level: 1 }),
+	);
+});
+
+test("a talk that fails to end says why and stays live", async () => {
+	vi.mocked(talks.endTalk).mockRejectedValue(
+		new Error("POST /api/talks/understanding-kubernetes/end: 502"),
+	);
+	renderRoute("/talks/understanding-kubernetes");
+	fireEvent.click(await screen.findByRole("button", { name: "End talk" }));
+
+	expect((await screen.findByRole("alert")).textContent).toBe(
+		"Couldn't end the talk: POST /api/talks/understanding-kubernetes/end: 502",
+	);
+	expect(screen.getByRole("link", { name: "Caption this talk" })).toBeDefined();
 });
 
 test("the speak page offers the microphone and shows the live captions", async () => {

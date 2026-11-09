@@ -13,6 +13,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/result"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/sortorder"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -81,6 +82,8 @@ type Talks struct {
 	captions string
 	tracer   trace.Tracer
 	created  metric.Int64Counter
+	ended    metric.Int64Counter
+	duration metric.Float64Histogram
 }
 
 func NewTalks(es *elasticsearch.TypedClient) (*Talks, error) {
@@ -93,7 +96,27 @@ func newTalks(es *elasticsearch.TypedClient, index, captionsIndex string) (*Talk
 	if err != nil {
 		return nil, err
 	}
-	return &Talks{es: es, index: index, captions: captionsIndex, tracer: otel.Tracer(instrumentation), created: created}, nil
+	ended, err := otel.Meter(instrumentation).Int64Counter("talks.ended",
+		metric.WithDescription("Live talks ended from the web app"))
+	if err != nil {
+		return nil, err
+	}
+	duration, err := otel.Meter(instrumentation).Float64Histogram("talks.duration",
+		metric.WithDescription("How long a talk was live before it ended"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(300, 900, 1800, 2700, 3600, 5400, 7200))
+	if err != nil {
+		return nil, err
+	}
+	return &Talks{
+		es:       es,
+		index:    index,
+		captions: captionsIndex,
+		tracer:   otel.Tracer(instrumentation),
+		created:  created,
+		ended:    ended,
+		duration: duration,
+	}, nil
 }
 
 // talkDoc shares the talks index with notesDoc. A talk's notes can be stored
@@ -175,6 +198,53 @@ func (t *Talks) Get(ctx context.Context, id string) (*Talk, error) {
 	}
 	if doc.StartedAt.IsZero() {
 		return nil, nil
+	}
+	talk := doc.talk(id)
+	return &talk, nil
+}
+
+// Run inside Elasticsearch so two people ending a talk at once can't both set
+// ended_at. A document without started_at holds only notes and isn't a talk.
+const endTalkScript = `if (ctx._source.started_at == null || ctx._source.ended_at != null) { ctx.op = 'noop' } else { ctx._source.ended_at = params.now }`
+
+// End finishes a live talk and returns it, or nil when there is no talk with
+// that id. A talk that has already ended keeps its first end time. It waits
+// for a refresh so the talk is listed as past for everyone straight away.
+func (t *Talks) End(ctx context.Context, id string) (*Talk, error) {
+	ctx, span := t.tracer.Start(ctx, "talks.end", trace.WithAttributes(attribute.String("talk.id", id)))
+	defer span.End()
+
+	now, err := json.Marshal(time.Now().UTC().Truncate(time.Millisecond))
+	if err != nil {
+		return nil, fmt.Errorf("end talk: %w", err)
+	}
+	res, err := t.es.Update(t.index, id).
+		Script(&types.Script{Source: endTalkScript, Params: map[string]json.RawMessage{"now": now}}).
+		SourceIncludes_("title", "speaker", "description", "started_at", "ended_at").
+		Refresh(refresh.Waitfor).
+		Do(ctx)
+	if isNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("end talk: %w", err)
+	}
+	if res.Get == nil {
+		return nil, fmt.Errorf("end talk: no source in the response")
+	}
+	var doc talkDoc
+	if err := json.Unmarshal(res.Get.Source_, &doc); err != nil {
+		return nil, fmt.Errorf("end talk: %w", err)
+	}
+	if doc.StartedAt.IsZero() {
+		return nil, nil
+	}
+	endedNow := res.Result == result.Updated
+	span.SetAttributes(attribute.Bool("talk.already_ended", !endedNow))
+	if endedNow {
+		t.ended.Add(ctx, 1)
+		t.duration.Record(ctx, doc.EndedAt.Sub(doc.StartedAt).Seconds())
 	}
 	talk := doc.talk(id)
 	return &talk, nil
@@ -383,8 +453,16 @@ func decodeTalks(hits []types.Hit) ([]Talk, error) {
 }
 
 func isConflict(err error) bool {
+	return hasStatus(err, 409)
+}
+
+func isNotFound(err error) bool {
+	return hasStatus(err, 404)
+}
+
+func hasStatus(err error, status int) bool {
 	var esErr *types.ElasticsearchError
-	return errors.As(err, &esErr) && esErr.Status == 409
+	return errors.As(err, &esErr) && esErr.Status == status
 }
 
 var notSlug = regexp.MustCompile(`[^a-z0-9]+`)

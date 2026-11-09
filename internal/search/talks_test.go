@@ -140,3 +140,60 @@ func hasHighlight(highlights []Highlight, field, fragment string) bool {
 	}
 	return false
 }
+
+func TestEndTalk(t *testing.T) {
+	es, ctx := testClient(t)
+	prefix := fmt.Sprintf("test-%d-", time.Now().UnixNano())
+	t.Cleanup(func() {
+		_, _ = es.Indices.Delete(prefix + TalksIndex).Do(context.Background())
+	})
+	if _, err := es.Indices.Create(prefix + TalksIndex).Raw(strings.NewReader(talksMapping)).Do(ctx); err != nil {
+		t.Fatal(err)
+	}
+	talks, err := newTalks(es, prefix+TalksIndex, prefix+CaptionsIndex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	live, err := talks.Create(ctx, NewTalk{Title: "Guitar demo", Speaker: "Aaron"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ended, err := talks.End(ctx, live.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ended == nil || ended.Status != TalkFinished || ended.EndedAt == nil || ended.EndedAt.Before(live.StartedAt) ||
+		ended.Title != live.Title || !ended.StartedAt.Equal(live.StartedAt) {
+		t.Fatalf("ended %+v, want %+v finished", ended, live)
+	}
+
+	list, err := talks.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Status != TalkFinished {
+		t.Errorf("list straight after ending = %+v, want the talk finished", list)
+	}
+
+	again, err := talks.End(ctx, live.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again == nil || !again.EndedAt.Equal(*ended.EndedAt) {
+		t.Errorf("ending twice = %+v, want the first end time %v kept", again, ended.EndedAt)
+	}
+
+	if got, err := talks.End(ctx, "missing"); err != nil || got != nil {
+		t.Errorf("missing talk: end = %+v, err = %v", got, err)
+	}
+	if err := newTalkNotes(es, prefix+TalksIndex).Store(ctx, "untracked", notes.Notes{Summary: "Guitar strings stretch."}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := talks.End(ctx, "untracked"); err != nil || got != nil {
+		t.Errorf("notes without a talk: end = %+v, err = %v", got, err)
+	}
+	if got, err := talks.Get(ctx, "untracked"); err != nil || got != nil {
+		t.Errorf("ending notes without a talk made one: get = %+v, err = %v", got, err)
+	}
+}

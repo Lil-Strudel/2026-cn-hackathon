@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 )
@@ -39,6 +40,19 @@ func (f *fakeTalks) Create(_ context.Context, n search.NewTalk) (search.Talk, er
 	return search.Talk{ID: "guitar-demo", Title: n.Title, Speaker: n.Speaker, Status: search.TalkLive}, f.err
 }
 
+func (f *fakeTalks) End(_ context.Context, id string) (*search.Talk, error) {
+	talk, ok := f.talks[id]
+	if !ok || f.err != nil {
+		return nil, f.err
+	}
+	if talk.EndedAt == nil {
+		now := time.Now()
+		talk.Status, talk.EndedAt = search.TalkFinished, &now
+		f.talks[id] = talk
+	}
+	return &talk, nil
+}
+
 func (f *fakeTalks) Search(_ context.Context, query string) ([]search.SearchHit, error) {
 	f.queries = append(f.queries, query)
 	return nil, f.err
@@ -50,6 +64,7 @@ func serveTalks(t *testing.T, store talkStore, method, target, body string) *htt
 	mux.HandleFunc("GET /api/talks", handleListTalks(store))
 	mux.HandleFunc("POST /api/talks", handleCreateTalk(store))
 	mux.HandleFunc("GET /api/talks/{talkID}", handleGetTalk(store))
+	mux.HandleFunc("POST /api/talks/{talkID}/end", handleEndTalk(store))
 	mux.HandleFunc("GET /api/search", handleSearchTalks(store))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body)))
@@ -110,6 +125,26 @@ func TestGetTalk(t *testing.T) {
 	}
 }
 
+func TestEndTalk(t *testing.T) {
+	store := &fakeTalks{talks: map[string]search.Talk{"guitar-demo": {ID: "guitar-demo", Status: search.TalkLive}}}
+	rec := serveTalks(t, store, http.MethodPost, "/api/talks/guitar-demo/end", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d: %s", rec.Code, rec.Body)
+	}
+	var talk search.Talk
+	if err := json.Unmarshal(rec.Body.Bytes(), &talk); err != nil || talk.Status != search.TalkFinished || talk.EndedAt == nil {
+		t.Errorf("response %s, err %v", rec.Body, err)
+	}
+	for target, want := range map[string]int{
+		"/api/talks/missing/end":     http.StatusNotFound,
+		"/api/talks/Not%20Valid/end": http.StatusNotFound,
+	} {
+		if rec := serveTalks(t, store, http.MethodPost, target, ""); rec.Code != want {
+			t.Errorf("POST %s: got %d, want %d", target, rec.Code, want)
+		}
+	}
+}
+
 func TestListTalksIsAnArrayWhenEmpty(t *testing.T) {
 	rec := serveTalks(t, &fakeTalks{}, http.MethodGet, "/api/talks", "")
 	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != "[]" {
@@ -139,6 +174,7 @@ func TestTalkStoreFailureIsBadGateway(t *testing.T) {
 		{http.MethodGet, "/api/talks", ""},
 		{http.MethodPost, "/api/talks", `{"title":"Guitar demo","speaker":"Aaron"}`},
 		{http.MethodGet, "/api/search?q=guitar", ""},
+		{http.MethodPost, "/api/talks/guitar-demo/end", ""},
 	} {
 		if rec := serveTalks(t, store, req[0], req[1], req[2]); rec.Code != http.StatusBadGateway {
 			t.Errorf("%s %s: got %d, want 502", req[0], req[1], rec.Code)
