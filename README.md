@@ -65,7 +65,8 @@ to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as t
 
 Without `OPENAI_API_KEY`, the api transcribes with a fake that turns every two seconds of audio
 into a canned line, misheard the way Whisper would, so the whole caption path and its
-corrections run without a key.
+corrections run without a key. Turn off "Correct terms" above a talk's captions to see them
+as Whisper heard them.
 
 | Command                               |                                                         |
 | ------------------------------------- | ------------------------------------------------------- |

@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { type CaptionLine, mergeLines, splitCorrections } from "./captions";
+import {
+	type CaptionLine,
+	heardText,
+	mergeLines,
+	splitCorrections,
+} from "./captions";
 
 const line = (overrides: Partial<CaptionLine>): CaptionLine => ({
 	id: "1",
@@ -61,4 +66,18 @@ test("a late partial never overwrites a finished line", () => {
 	const done = line({ id: "a", text: "finished line" });
 	const lines = mergeLines([done], [{ ...done, text: "fini", final: false }]);
 	expect(lines[0]?.text).toBe("finished line");
+});
+
+test("the heard text puts back what Whisper heard in place of each correction", () => {
+	expect(
+		heardText(
+			line({
+				text: "run kubectl apply against etcd",
+				corrections: [
+					{ start: 26, end: 30, heard: "at CD" },
+					{ start: 4, end: 11, heard: "cube control" },
+				],
+			}),
+		),
+	).toBe("run cube control apply against at CD");
 });

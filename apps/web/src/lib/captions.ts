@@ -33,6 +33,13 @@ export function splitCorrections(line: CaptionLine): CaptionPart[] {
 	return parts;
 }
 
+/** The line as Whisper heard it, before the vocabulary corrected it. */
+export function heardText(line: CaptionLine): string {
+	return splitCorrections(line)
+		.map(({ text, heard }) => heard ?? text)
+		.join("");
+}
+
 export function mergeLines(
 	lines: CaptionLine[],
 	incoming: CaptionLine[],
