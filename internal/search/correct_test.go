@@ -160,3 +160,36 @@ func TestVocabularyCorrect(t *testing.T) {
 		}
 	}
 }
+
+func TestVocabularySeedKeepsExistingTerms(t *testing.T) {
+	es, ctx := testClient(t)
+	prefix := fmt.Sprintf("test-%d-", time.Now().UnixNano())
+	t.Cleanup(func() { _, _ = es.Indices.Delete(prefix + "*").Do(context.Background()) })
+	if err := ensureIndices(ctx, es, prefix); err != nil {
+		t.Fatal(err)
+	}
+	vocab, err := newVocabulary(es, prefix+VocabularyIndex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vocab.Add(ctx, []Term{{Term: "Helm", Context: []string{"chart"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := vocab.Seed(ctx, DefaultTerms); err != nil {
+		t.Fatal(err)
+	}
+
+	for heard, want := range map[string]string{
+		"we install it with helm":        "we install it with helm",
+		"the helm chart sets it up":      "the Helm chart sets it up",
+		"we route traffic with silly um": "we route traffic with Cilium",
+	} {
+		got, err := vocab.Correct(ctx, heard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Text != want {
+			t.Errorf("Correct(%q) = %q, want %q", heard, got.Text, want)
+		}
+	}
+}

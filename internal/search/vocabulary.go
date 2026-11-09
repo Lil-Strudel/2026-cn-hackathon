@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/elastic/go-elasticsearch/v9"
@@ -84,6 +85,30 @@ func (v *Vocabulary) Add(ctx context.Context, terms []Term) error {
 	}
 	if res.Errors {
 		return fmt.Errorf("add terms: some terms were rejected")
+	}
+	return nil
+}
+
+// Seed stores the terms that aren't in the vocabulary yet and leaves the rest
+// alone, so starting the api never undoes context words someone set.
+func (v *Vocabulary) Seed(ctx context.Context, terms []Term) error {
+	bulk := v.es.Bulk().Index(v.index).Refresh(refresh.Waitfor)
+	for _, term := range terms {
+		id := strings.ToLower(term.Term)
+		if err := bulk.CreateOp(types.CreateOperation{Id_: &id}, term); err != nil {
+			return err
+		}
+	}
+	res, err := bulk.Do(ctx)
+	if err != nil {
+		return fmt.Errorf("seed terms: %w", err)
+	}
+	for _, item := range res.Items {
+		for _, result := range item {
+			if result.Error != nil && result.Status != http.StatusConflict {
+				return fmt.Errorf("seed terms: %s", result.Error.Type)
+			}
+		}
 	}
 	return nil
 }

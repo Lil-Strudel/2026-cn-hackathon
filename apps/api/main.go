@@ -73,7 +73,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := vocab.Add(ctx, search.DefaultTerms); err != nil {
+	if err := vocab.Seed(ctx, search.DefaultTerms); err != nil {
 		return err
 	}
 	history := search.NewCaptions(es)
