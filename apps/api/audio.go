@@ -26,6 +26,7 @@ import (
 const (
 	instrumentationName = "github.com/Lil-Strudel/2026-cn-hackathon/apps/api"
 	maxAudioFrame       = 64 << 10
+	endOfAudio          = "end"
 	drainTimeout        = 5 * time.Second
 )
 
@@ -51,8 +52,9 @@ func redisPublisher(rdb *redis.Client) publishFunc {
 
 // audioHandler takes a speaker's microphone over a WebSocket, transcribes it,
 // publishes the captions and stores the final lines. Binary frames carry mono PCM16 at
-// transcribe.SampleRate. The speaker watches captions over SSE like everyone
-// else, so nothing is sent back on the socket.
+// transcribe.SampleRate, and a text frame of endOfAudio ends the audio while
+// the last lines are still being transcribed. The speaker watches captions over
+// SSE like everyone else, so nothing is sent back on the socket.
 type audioHandler struct {
 	shutdown    context.Context
 	transcriber transcribe.Transcriber
@@ -215,6 +217,9 @@ func (a *audioHandler) relayAudio(ctx context.Context, conn *websocket.Conn, ses
 			if s := websocket.CloseStatus(err); s != websocket.StatusNormalClosure && s != websocket.StatusGoingAway {
 				slog.WarnContext(ctx, "speaker connection lost", "err", err)
 			}
+			return websocket.StatusNormalClosure, ""
+		}
+		if kind == websocket.MessageText && string(data) == endOfAudio {
 			return websocket.StatusNormalClosure, ""
 		}
 		if kind != websocket.MessageBinary || len(data)%2 != 0 {

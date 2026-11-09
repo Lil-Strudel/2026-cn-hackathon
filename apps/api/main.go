@@ -89,6 +89,7 @@ func run() error {
 	}
 	mux := newMux(rdb, es, vocab, history)
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
+	mux.HandleFunc("GET /api/transcribe", audio.ServeTranscription)
 
 	err = httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
 	waitCtx, cancel := context.WithTimeout(context.Background(), drainTimeout+time.Second)
