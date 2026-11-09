@@ -1,12 +1,12 @@
 import type { CaptionLine } from "~/lib/captions";
-import { findTalk } from "~/lib/talks-fixtures";
+import { fetchTalk } from "~/lib/talks";
 import { corrections, scriptFor, transcript } from "~/lib/transcript-fixtures";
 
 const historyLines = 4;
 const secondsBetweenLiveLines = 7;
 
-export function captionHistory(talkId: string): CaptionLine[] {
-	const talk = findTalk(talkId);
+export async function captionHistory(talkId: string): Promise<CaptionLine[]> {
+	const talk = await fetchTalk(talkId);
 	if (talk.status === "finished") return transcript(talkId, talk.startedAt);
 
 	const now = Date.now();

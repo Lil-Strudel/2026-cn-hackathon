@@ -1,10 +1,12 @@
 import { screen, within } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as talks from "~/lib/talks";
 import { renderRoute } from "~/test/render-route";
+import { mockTalksApi } from "~/test/talks";
 
 vi.mock("~/lib/talks", { spy: true });
 
+beforeEach(() => mockTalksApi());
 afterEach(() => vi.restoreAllMocks());
 
 test("lists live talks apart from past ones", async () => {
