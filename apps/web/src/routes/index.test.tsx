@@ -1,26 +1,29 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+import * as talks from "~/lib/talks";
 import { renderRoute } from "~/test/render-route";
+
+vi.mock("~/lib/talks", { spy: true });
 
 afterEach(() => vi.restoreAllMocks());
 
-test("shows what the api reports", async () => {
-	vi.spyOn(globalThis, "fetch").mockResolvedValue(
-		Response.json({
-			message: "hello from api",
-			elasticsearch: "9.2.0",
-			redis: "PONG",
-		}),
-	);
+test("lists live talks apart from past ones", async () => {
 	renderRoute("/");
-	expect(await screen.findByText("hello from api")).toBeDefined();
-	expect(screen.getByText("PONG")).toBeDefined();
+	const live = await screen.findByRole("region", { name: "Live now" });
+	expect(
+		await within(live).findByText("Understanding Kubernetes"),
+	).toBeDefined();
+	expect(within(live).queryByText("GitOps without tears")).toBeNull();
+	expect(await screen.findByText("GitOps without tears")).toBeDefined();
 });
 
-test("shows the error when the api fails", async () => {
-	vi.spyOn(globalThis, "fetch").mockResolvedValue(
-		new Response(null, { status: 502 }),
+test("shows the error when talks fail to load", async () => {
+	vi.mocked(talks.fetchTalks).mockRejectedValue(
+		new Error("GET /api/talks: 502"),
 	);
 	renderRoute("/");
-	expect(await screen.findByText("GET /api/hello: 502")).toBeDefined();
+	expect(
+		await screen.findByText("Couldn't load talks: GET /api/talks: 502"),
+	).toBeDefined();
+	expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
 });
