@@ -44,6 +44,7 @@ step with `src/lib/theme.ts`.
 | `accent` / `accent-foreground`       | `#e5ecdf` / `#1a2318` | `#263022` / `#eef2ea` | Hover and selected rows                      |
 | `highlight` / `highlight-foreground` | `#ffe08a` / `#1a2318` | `#4a3b0e` / `#ffe08a` | Corrected caption terms, search term matches |
 | `destructive`                        | `#b42318`             | `#f2685a`             | Errors and destructive actions               |
+| `live` / `live-foreground`           | `#c92035` / white     | `#f97676` / `#250e0e` | The "Live" badge on talks being captioned    |
 | `border`                             | `#d7ded0`             | `#2b3527`             | Hairlines, card and outline-button borders   |
 | `input`                              | `#7f8a79`             | `#66725f`             | Form field borders                           |
 | `ring`                               | `#2d683c`             | `#8fcb8f`             | Focus rings                                  |
@@ -64,11 +65,12 @@ Measured with the WCAG 2 formula. Keep these at or above the target when changin
 | `primary` on `background` (links)      | 6.2:1  | 9.8:1  | 4.5:1              |
 | `highlight-foreground` on `highlight`  | 12.6:1 | 8.5:1  | 7:1 (caption text) |
 | `destructive` on `background` / `card` | 6.1:1  | 5.5:1  | 4.5:1              |
+| `live-foreground` on `live`            | 5.6:1  | 6.9:1  | 4.5:1              |
 | `input` on `card` and `background`     | 3.3:1+ | 3.3:1+ | 3:1 (non-text)     |
 | `ring` on `background`                 | 6.2:1  | 9.8:1  | 3:1 (non-text)     |
 
-Missing for now: status colours (success, warning, info), a `live` colour for the "on air"
-badge, and the `chart-*` and `sidebar-*` tokens. Add them to `styles.css`, this table and the
+Missing for now: status colours (success, warning, info), and the `chart-*` and `sidebar-*`
+tokens. Add them to `styles.css`, this table and the
 contrast table when first needed.
 
 ## 3. Shape and depth
@@ -133,13 +135,18 @@ All UI is built from shadcn/ui components in `apps/web/src/components/ui/`. See 
 `ui-components` skill for how to add one. Where this repo differs from stock shadcn
 (`new-york`), the difference is listed here.
 
-| Component     | File                  | Primitive                             | Variants / notes                                                                                                                                                                                                                                                        |
-| ------------- | --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Toggle`      | `ui/toggle.tsx`       | Radix `Toggle`                        | `default`, `outline`. Sizes `default`, `sm`, `lg`. Differs from stock: `rounded-full`, the solid offset focus ring, and the on state is `bg-primary text-primary-foreground` (stock `bg-accent` is only 1.2:1 against white, too faint to show which item is on)        |
-| `ToggleGroup` | `ui/toggle-group.tsx` | Radix `ToggleGroup`                   | `ToggleGroup`, `ToggleGroupItem`; takes the `Toggle` variants and a `spacing`. With `spacing={0}` it is a pill-shaped segmented control. Use `type="single"` for a choice of one (it renders as a radio group)                                                          |
-| `ThemeToggle` | `theme-toggle.tsx`    | `ToggleGroup`                         | Light, Dark, Match system. Icon-only, each item labelled with `aria-label` and `title`. Uses `useTheme` (`hooks/use-theme.ts`)                                                                                                                                          |
-| `Button`      | `ui/button.tsx`       | native `button`, `Slot` for `asChild` | `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`. Sizes `default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`. Use `asChild` to render a router `Link`. Differs from stock: `rounded-full` at every size, and a solid offset focus ring |
-| `Card`        | `ui/card.tsx`         | native `div`                          | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`. Stock; `rounded-xl` is 16px here                                                                                                                                       |
+| Component         | File                   | Primitive                             | Variants / notes                                                                                                                                                                                                                                                        |
+| ----------------- | ---------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Toggle`          | `ui/toggle.tsx`        | Radix `Toggle`                        | `default`, `outline`. Sizes `default`, `sm`, `lg`. Differs from stock: `rounded-full`, the solid offset focus ring, and the on state is `bg-primary text-primary-foreground` (stock `bg-accent` is only 1.2:1 against white, too faint to show which item is on)        |
+| `ToggleGroup`     | `ui/toggle-group.tsx`  | Radix `ToggleGroup`                   | `ToggleGroup`, `ToggleGroupItem`; takes the `Toggle` variants and a `spacing`. With `spacing={0}` it is a pill-shaped segmented control. Use `type="single"` for a choice of one (it renders as a radio group)                                                          |
+| `ThemeToggle`     | `theme-toggle.tsx`     | `ToggleGroup`                         | Light, Dark, Match system. Icon-only, each item labelled with `aria-label` and `title`. Uses `useTheme` (`hooks/use-theme.ts`)                                                                                                                                          |
+| `Button`          | `ui/button.tsx`        | native `button`, `Slot` for `asChild` | `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`. Sizes `default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`. Use `asChild` to render a router `Link`. Differs from stock: `rounded-full` at every size, and a solid offset focus ring |
+| `Card`            | `ui/card.tsx`          | native `div`                          | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`. Stock; `rounded-xl` is 16px here                                                                                                                                       |
+| `Badge`           | `ui/badge.tsx`         | native `span`, `Slot` for `asChild`   | `default`, `secondary`, `destructive`, `outline`, `ghost`, `link`, and `live` (added here, on the `live` token). Differs from stock: the solid offset focus ring                                                                                                        |
+| `Input`           | `ui/input.tsx`         | native `input`                        | Differs from stock: the solid offset focus ring                                                                                                                                                                                                                         |
+| `LiveBadge`       | `live-badge.tsx`       | `Badge`                               | `live` badge with a dot that pulses only under `motion-safe`. The word "Live" carries the meaning, not the colour                                                                                                                                                       |
+| `TalkCard`        | `talk-card.tsx`        | `Card`                                | A talk in a list. The title link stretches over the whole card (`after:absolute after:inset-0`), so give anything else clickable inside it `relative`. `children` render below the meta line (search highlights)                                                        |
+| `HighlightedText` | `highlighted-text.tsx` | native `mark`                         | Renders an Elasticsearch highlight fragment, turning `<mark>` into `bg-highlight` without parsing any other markup                                                                                                                                                      |
 
 ## 7. Motion and accessibility
 
