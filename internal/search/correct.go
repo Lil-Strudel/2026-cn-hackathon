@@ -61,7 +61,11 @@ func correct(ctx context.Context, text string, match matchFunc) (Correction, err
 	for i, c := range candidates {
 		for _, term := range terms[i] {
 			s, ok := soundsRight(c.text, term)
-			if ok && s > best[c.first].similarity {
+			if !ok {
+				continue
+			}
+			cur, seen := best[c.first]
+			if !seen || s > cur.similarity && !(cur.similarity == 1 && cur.last < c.last) {
 				best[c.first] = replacement{last: c.last, term: term, similarity: s}
 			}
 		}
