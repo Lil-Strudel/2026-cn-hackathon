@@ -1,26 +1,17 @@
-import { screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { screen, within } from "@testing-library/react";
+import { expect, test } from "vitest";
 import { renderRoute } from "~/test/render-route";
 
-afterEach(() => vi.restoreAllMocks());
-
-test("shows what the api reports", async () => {
-	vi.spyOn(globalThis, "fetch").mockResolvedValue(
-		Response.json({
-			message: "hello from api",
-			elasticsearch: "9.2.0",
-			redis: "PONG",
-		}),
-	);
+test("lists live talks apart from past ones", async () => {
 	renderRoute("/");
-	expect(await screen.findByText("hello from api")).toBeDefined();
-	expect(screen.getByText("PONG")).toBeDefined();
-});
+	const live = (
+		await screen.findByRole("heading", { name: "Live now" })
+	).closest("section");
+	if (!live) throw new Error("no live talks section");
 
-test("shows the error when the api fails", async () => {
-	vi.spyOn(globalThis, "fetch").mockResolvedValue(
-		new Response(null, { status: 502 }),
-	);
-	renderRoute("/");
-	expect(await screen.findByText("GET /api/hello: 502")).toBeDefined();
+	expect(
+		await within(live).findByText("Understanding Kubernetes"),
+	).toBeDefined();
+	expect(within(live).queryByText("GitOps without tears")).toBeNull();
+	expect(screen.getByText("GitOps without tears")).toBeDefined();
 });
