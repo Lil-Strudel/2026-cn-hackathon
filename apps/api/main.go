@@ -15,6 +15,7 @@ import (
 
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/config"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/httpserver"
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/telemetry"
 )
 
@@ -62,6 +63,9 @@ func run() error {
 	)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
+	}
+	if err := search.EnsureIndices(ctx, es); err != nil {
+		return err
 	}
 
 	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
