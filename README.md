@@ -78,13 +78,14 @@ back to the commit as a status.
 
 ## Prepared before the event
 
-The rules allow templates and boilerplate. Everything in the initial boilerplate commit was
-prepared on November 8:
+The rules allow templates and boilerplate. Everything merged before the event was prepared on
+November 8, in pull requests #1 to #4:
 
 - the cluster operators
 - the deploy pipeline
 - this repository's tooling
 - services that start, report health and emit telemetry, without product features
+- instructions for coding agents (`AGENTS.md`, a UI components skill, a placeholder style guide)
 
 All product work starts at the hackathon.
 
