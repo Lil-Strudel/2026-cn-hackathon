@@ -2,10 +2,13 @@ import { screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import * as captions from "~/lib/captions";
 import { renderRoute } from "~/test/render-route";
+import { mockTalksApi } from "~/test/talks";
 
 vi.mock("~/lib/captions", { spy: true });
+vi.mock("~/lib/talks", { spy: true });
 
 beforeEach(() => {
+	mockTalksApi();
 	vi.mocked(captions.fetchCaptions).mockResolvedValue([]);
 	vi.mocked(captions.subscribeCaptions).mockReturnValue(() => {});
 });
