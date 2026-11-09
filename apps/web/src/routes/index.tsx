@@ -162,7 +162,7 @@ function SearchResults({ query }: { query: string }) {
 	return (
 		<div className="flex flex-col gap-4">
 			<p role="status" className="text-sm text-muted-foreground">
-				{results.data === undefined
+				{results.data === undefined || results.isPlaceholderData
 					? "Searching…"
 					: results.data.length === 0
 						? `No talks mention “${query}”.`
