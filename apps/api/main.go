@@ -67,11 +67,18 @@ func run() error {
 	if err := search.EnsureIndices(ctx, es); err != nil {
 		return err
 	}
+	vocab, err := search.NewVocabulary(es)
+	if err != nil {
+		return err
+	}
+	if err := vocab.Add(ctx, search.DefaultTerms); err != nil {
+		return err
+	}
 
-	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb, es))
+	return httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), newMux(rdb, es, vocab))
 }
 
-func newMux(rdb *redis.Client, es *elasticsearch.TypedClient) *http.ServeMux {
+func newMux(rdb *redis.Client, es *elasticsearch.TypedClient, vocab *search.Vocabulary) *http.ServeMux {
 	mux := httpserver.New(map[string]httpserver.ReadinessCheck{
 		"redis": func(ctx context.Context) error { return rdb.Ping(ctx).Err() },
 		"elasticsearch": func(ctx context.Context) error {
@@ -82,6 +89,8 @@ func newMux(rdb *redis.Client, es *elasticsearch.TypedClient) *http.ServeMux {
 			return err
 		},
 	})
+	mux.HandleFunc("POST /api/corrections", handleCorrect(vocab))
+	mux.HandleFunc("POST /api/vocabulary", handleAddTerms(vocab))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {
 		info, err := es.Info().Do(r.Context())
 		if err != nil {

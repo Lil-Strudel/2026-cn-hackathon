@@ -8,6 +8,8 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 )
 
 func TestConfigDefaultsMatchViteProxy(t *testing.T) {
@@ -31,7 +33,11 @@ func TestHealthz(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mux := newMux(redis.NewClient(&redis.Options{}), es)
+	vocab, err := search.NewVocabulary(es)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := newMux(redis.NewClient(&redis.Options{}), es, vocab)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))

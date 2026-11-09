@@ -27,6 +27,14 @@ export function recordThemePreference(preference: ThemePreference) {
 	});
 }
 
+export function recordCorrection(corrected: number) {
+	if (!enabled) return;
+	sendEvent("caption.corrected", {
+		title: `Corrected ${corrected} terms`,
+		attributes: { "captions.corrections": corrected },
+	});
+}
+
 // The query text stays out of telemetry: what people search for is their business.
 export function recordSearch(queryLength: number, results: number) {
 	if (!enabled) return;
