@@ -102,3 +102,13 @@ export function recordSpeaker(
 		},
 	});
 }
+
+export type DictationEvent = "started" | "finished" | "failed";
+
+export function recordDictation(event: DictationEvent, reason?: string) {
+	if (!enabled) return;
+	sendEvent(`dictation.${event}`, {
+		title: `Dictation ${event}`,
+		attributes: reason ? { "app.dictation.reason": reason } : {},
+	});
+}

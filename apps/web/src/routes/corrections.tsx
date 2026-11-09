@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { Mic, MicOff } from "lucide-react";
 import { useId, useState } from "react";
 import { CorrectedText } from "~/components/corrected-text";
 import { Badge } from "~/components/ui/badge";
@@ -14,12 +15,22 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import { type DictationStatus, useDictation } from "~/hooks/use-dictation";
 import { addTerms, correctText, listTerms, removeTerm } from "~/lib/api";
 import { recordCorrection } from "~/lib/telemetry";
 
 export const Route = createFileRoute("/corrections")({
 	component: Corrections,
 });
+
+const maxHeardLength = 2000;
+
+const dictationStatusText: Record<DictationStatus, string | null> = {
+	idle: null,
+	starting: "Starting your microphone…",
+	live: "Listening. Stop when you're done to correct what was heard.",
+	finishing: "Transcribing the last words…",
+};
 
 const example =
 	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah. I play guitar, I traveled to Qatar, and Sonar Guitar reviews my pull requests.";
@@ -57,6 +68,21 @@ function Corrections() {
 		},
 	});
 
+	const dictation = useDictation();
+	const dictating = dictation.status !== "idle";
+
+	async function startDictation() {
+		correction.reset();
+		await dictation.start();
+	}
+
+	async function finishDictation() {
+		const text = (await dictation.finish()).slice(0, maxHeardLength);
+		if (!text) return;
+		setHeard(text);
+		correction.mutate(text);
+	}
+
 	const corrected =
 		correction.data?.segments.filter((s) => s.heard).length ?? 0;
 
@@ -67,8 +93,9 @@ function Corrections() {
 					Try the caption correction
 				</h1>
 				<p className="text-sm text-muted-foreground">
-					Type what speech recognition might mishear. Terms that sound like a
-					word in the vocabulary are replaced and highlighted.
+					Type what speech recognition might mishear, or say it into your
+					microphone. Terms that sound like a word in the vocabulary are
+					replaced and highlighted.
 				</p>
 			</div>
 
@@ -85,18 +112,50 @@ function Corrections() {
 							<Label htmlFor={heardId}>What was heard</Label>
 							<Textarea
 								id={heardId}
-								value={heard}
-								maxLength={2000}
+								value={dictating ? dictation.text : heard}
+								readOnly={dictating}
+								placeholder={dictating ? "Start talking…" : undefined}
+								maxLength={maxHeardLength}
 								onChange={(e) => setHeard(e.target.value)}
 							/>
 						</div>
-						<Button
-							type="submit"
-							className="self-start"
-							disabled={correction.isPending || !heard.trim()}
+						<div className="flex flex-wrap items-center gap-2">
+							<Button
+								type="submit"
+								disabled={dictating || correction.isPending || !heard.trim()}
+							>
+								{correction.isPending ? "Correcting…" : "Correct"}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={
+									dictation.status === "starting" ||
+									dictation.status === "finishing"
+								}
+								onClick={
+									dictation.status === "live" ? finishDictation : startDictation
+								}
+							>
+								{dictation.status === "live" ? (
+									<MicOff aria-hidden />
+								) : (
+									<Mic aria-hidden />
+								)}
+								{dictation.status === "live" ? "Stop and correct" : "Speak"}
+							</Button>
+						</div>
+						<p
+							role="status"
+							className="text-sm text-muted-foreground empty:hidden"
 						>
-							{correction.isPending ? "Correcting…" : "Correct"}
-						</Button>
+							{dictationStatusText[dictation.status]}
+						</p>
+						{dictation.error && (
+							<p role="alert" className="text-sm text-destructive">
+								{dictation.error}
+							</p>
+						)}
 					</form>
 				</CardContent>
 			</Card>
