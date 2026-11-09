@@ -26,3 +26,15 @@ export function recordThemePreference(preference: ThemePreference) {
 		attributes: { [themeAttribute]: preference },
 	});
 }
+
+// The query text stays out of telemetry: what people search for is their business.
+export function recordSearch(queryLength: number, results: number) {
+	if (!enabled) return;
+	sendEvent("talks.searched", {
+		title: `Search returned ${results} talks`,
+		attributes: {
+			"app.search.query_length": queryLength,
+			"app.search.results": results,
+		},
+	});
+}
