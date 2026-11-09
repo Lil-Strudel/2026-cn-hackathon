@@ -13,6 +13,11 @@ is fixed.
   port 9090. Fanout is the service that scales, so it probably needs to target `fanout` on the
   port fanout serves its metric on. Fix it in the homelab repo together with the
   `ScaledObject`.
+- **Anyone can caption any talk.** `GET /api/talks/{talkId}/audio` accepts any client, and the
+  WebSocket origin check only stops other websites' pages. A script can stream audio into any
+  live talk, publishing captions and running a paid OpenAI transcription session for as long as
+  it sends. Accepted for the demo (#18). Before real use it needs a per-talk speaker token
+  checked before the upgrade, and a cap on concurrent sessions.
 
 ## Repository
 
