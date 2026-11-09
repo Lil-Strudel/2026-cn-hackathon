@@ -68,6 +68,8 @@ Everything lands through a pull request. Never commit or push to `main`.
 - Branch from `main`, one branch per feature or fix, and open the PR as soon as the change works.
   Several small PRs beat one big one, for review and for the Gitar track.
 - Fill in `.github/pull_request_template.md`. "How to verify" lists what you actually ran.
+- Keep PR bodies short. Use a few bullets per section, one line each, and leave out anything the diff
+  already shows. "Why" explains only the decisions a reviewer couldn't guess.
 - PRs are squash-merged, so the PR title becomes the commit on `main`.
 
 ## Commits
