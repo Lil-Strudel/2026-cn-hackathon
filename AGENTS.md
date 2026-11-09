@@ -68,11 +68,18 @@ Everything lands through a pull request. Never commit or push to `main`.
 - Branch from `main`, one branch per feature or fix, and open the PR as soon as the change works.
   Several small PRs beat one big one, for review and for the Gitar track.
 - Fill in `.github/pull_request_template.md`. "How to verify" lists what you actually ran.
-- Before opening or updating a PR, run the checks for what you touched: `pnpm check`,
-  `pnpm typecheck` and `pnpm test` for the web app, `go test ./...` and `golangci-lint run` for Go.
 - PRs are squash-merged, so the PR title becomes the commit on `main`.
 
 ## Commits
+
+Before every commit, stage your changes and run these checks, then fix every failure and stage
+the fixes. There is no pre-commit hook; this is your job. Don't commit with a known failure, and
+don't silence one with an ignore comment or by turning off a rule.
+
+1. `pnpm exec biome check --write --staged` formats, lints and sorts imports in the staged
+   files. Fix by hand whatever it can't fix itself.
+2. If Go changed: `golangci-lint fmt` (gofumpt, goimports), then `golangci-lint run ./...`.
+3. `pnpm typecheck` and `pnpm test`, plus `go test ./...` if Go changed.
 
 - Every commit message and PR title is a [Conventional Commit](https://www.conventionalcommits.org):
   `type(scope): summary`, for example `feat(api): correct captions against the vocabulary`. CI
