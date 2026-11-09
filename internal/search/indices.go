@@ -58,7 +58,7 @@ const vocabularyMapping = `{
           "sound":   { "type": "text", "analyzer": "sound" }
         }
       },
-      "context":  { "type": "text", "analyzer": "english" },
+      "except":   { "type": "text", "analyzer": "english" },
       "talk_ids": { "type": "keyword" }
     }
   }

@@ -22,11 +22,11 @@ export const Route = createFileRoute("/corrections")({
 });
 
 const example =
-	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah. I play guitar, I have been to Qatar, and Sonar Guitar reviews my pull requests.";
+	"we route traffic with silly um and hubble, and scale it on cooper netties with Kedah. I play guitar, I traveled to Qatar, and Sonar Guitar reviews my pull requests.";
 
 const vocabularyKey = ["vocabulary"];
 
-function contextWords(input: string): string[] {
+function commaSeparated(input: string): string[] {
 	return input
 		.split(",")
 		.map((word) => word.trim())
@@ -36,11 +36,11 @@ function contextWords(input: string): string[] {
 function Corrections() {
 	const heardId = useId();
 	const termId = useId();
-	const contextId = useId();
-	const contextHelpId = useId();
+	const exceptId = useId();
+	const exceptHelpId = useId();
 	const [heard, setHeard] = useState(example);
 	const [term, setTerm] = useState("");
-	const [context, setContext] = useState("");
+	const [except, setExcept] = useState("");
 	const queryClient = useQueryClient();
 
 	const correction = useMutation({
@@ -52,7 +52,7 @@ function Corrections() {
 		mutationFn: addTerms,
 		onSuccess: () => {
 			setTerm("");
-			setContext("");
+			setExcept("");
 			queryClient.invalidateQueries({ queryKey: vocabularyKey });
 		},
 	});
@@ -139,7 +139,7 @@ function Corrections() {
 						onSubmit={(e) => {
 							e.preventDefault();
 							addition.mutate([
-								{ term: term.trim(), context: contextWords(context) },
+								{ term: term.trim(), except: commaSeparated(except) },
 							]);
 						}}
 					>
@@ -153,23 +153,23 @@ function Corrections() {
 								addition.reset();
 							}}
 						/>
-						<Label htmlFor={contextId} className="mt-2">
-							Context words (optional)
+						<Label htmlFor={exceptId} className="mt-2">
+							Except near (optional)
 						</Label>
 						<Input
-							id={contextId}
-							value={context}
-							aria-describedby={contextHelpId}
-							placeholder="Sonar, review, pull request"
+							id={exceptId}
+							value={except}
+							aria-describedby={exceptHelpId}
+							placeholder="play, music, country"
 							onChange={(e) => {
-								setContext(e.target.value);
+								setExcept(e.target.value);
 								addition.reset();
 							}}
 						/>
-						<p id={contextHelpId} className="text-sm text-muted-foreground">
-							Comma-separated. The term is only used when one of these words is
-							said nearby. Use it for names that sound like everyday words, like
-							Gitar and guitar.
+						<p id={exceptHelpId} className="text-sm text-muted-foreground">
+							Comma-separated. The term isn't used when one of these words is
+							said nearby. Use it for names that sound like everyday words, so
+							"playing a guitar" isn't corrected to Gitar.
 						</p>
 						<Button
 							type="submit"
@@ -215,7 +215,8 @@ function Vocabulary() {
 					<h2>Vocabulary</h2>
 				</CardTitle>
 				<CardDescription>
-					Every term captions are corrected to, with its context words.
+					Every term captions are corrected to, with the words it isn't used
+					near.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-2">
@@ -244,7 +245,7 @@ function Vocabulary() {
 							>
 								<div className="flex flex-wrap items-center gap-1">
 									<span className="mr-1 font-medium">{t.term}</span>
-									{t.context?.map((word) => (
+									{t.except?.map((word) => (
 										<Badge key={word} variant="outline">
 											{word}
 										</Badge>

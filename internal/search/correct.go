@@ -26,20 +26,20 @@ const (
 	// KT. Requiring the spelling to be half the same keeps "silly um" →
 	// "Cilium" (0.67) and rejects "cat" → "KEDA" (0.25).
 	minSimilarity = 0.5
-	// A term with context words needs one of them close by. Four words reach
-	// "using Sonar Guitar" but not, in "the country Qatar and I am using
-	// Sonar", from Qatar to Sonar.
-	contextWords = 4
+	// A term's exception words count when they are this close. Four words
+	// reach "playing a guitar" and "the country Qatar" but not, in "the
+	// country Qatar and I am using Sonar Guitar", from country to Guitar.
+	windowWords = 4
 )
 
 var (
 	wordPattern = regexp.MustCompile(`[\p{L}\p{N}]+(?:'\p{L}+)?`)
-	// A context word in the next clause is about something else.
+	// A word in the next clause is about something else.
 	clauseBreak = regexp.MustCompile(`[.,;:!?]`)
 )
 
 // lookup is a phrase to match against the vocabulary, with the words around
-// it that a term's context words are checked against.
+// it that a term's exception words are checked against.
 type lookup struct {
 	Phrase string
 	Window string
@@ -138,10 +138,10 @@ func window(text string, words [][]int, first, last int) string {
 		return !clauseBreak.MatchString(text[words[a][1]:words[b][0]])
 	}
 	var before, after []string
-	for i := first - 1; i >= 0 && len(before) < contextWords && joined(i, i+1); i-- {
+	for i := first - 1; i >= 0 && len(before) < windowWords && joined(i, i+1); i-- {
 		before = append([]string{text[words[i][0]:words[i][1]]}, before...)
 	}
-	for i := last + 1; i < len(words) && len(after) < contextWords && joined(i-1, i); i++ {
+	for i := last + 1; i < len(words) && len(after) < windowWords && joined(i-1, i); i++ {
 		after = append(after, text[words[i][0]:words[i][1]])
 	}
 	return strings.Join(append(before, after...), " ")
