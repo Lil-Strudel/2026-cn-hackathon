@@ -16,7 +16,7 @@ const (
 	maxCorrectionBytes = 2000
 	maxNewTerms        = 50
 	maxTermBytes       = 64
-	maxContextWords    = 10
+	maxExceptWords     = 20
 )
 
 func handleCorrect(vocab *search.Vocabulary) http.HandlerFunc {
@@ -47,7 +47,7 @@ func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 		var req struct {
 			Terms []search.Term `json:"terms"`
 		}
-		maxBody := maxNewTerms * (maxContextWords + 1) * maxTermBytes * 2
+		maxBody := maxNewTerms * (maxExceptWords + 1) * maxTermBytes * 2
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, int64(maxBody))).Decode(&req); err != nil {
 			http.Error(w, "invalid JSON body", http.StatusBadRequest)
 			return
@@ -63,13 +63,13 @@ func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 			return
 		}
 		for _, t := range terms {
-			if len(t.Context) > maxContextWords {
-				http.Error(w, "a term has more than 10 context words", http.StatusBadRequest)
+			if len(t.Except) > maxExceptWords {
+				http.Error(w, "a term has more than 20 exception words", http.StatusBadRequest)
 				return
 			}
-			for _, word := range append([]string{t.Term}, t.Context...) {
+			for _, word := range append([]string{t.Term}, t.Except...) {
 				if len(word) > maxTermBytes {
-					http.Error(w, "a term or context word is too long", http.StatusBadRequest)
+					http.Error(w, "a term or exception word is too long", http.StatusBadRequest)
 					return
 				}
 			}
@@ -113,9 +113,9 @@ func handleRemoveTerm(vocab *search.Vocabulary) http.HandlerFunc {
 
 func cleanTerm(t search.Term) (search.Term, bool) {
 	clean := search.Term{Term: strings.TrimSpace(t.Term)}
-	for _, word := range t.Context {
+	for _, word := range t.Except {
 		if word = strings.TrimSpace(word); word != "" {
-			clean.Context = append(clean.Context, word)
+			clean.Except = append(clean.Except, word)
 		}
 	}
 	return clean, clean.Term != ""

@@ -140,15 +140,18 @@ func TestVocabularyCorrect(t *testing.T) {
 	}
 
 	tests := map[string]string{
-		"we route traffic with silly um and hubble":                                 "we route traffic with Cilium and Hubble",
-		"it runs on cooper netties":                                                 "it runs on Kubernetes",
-		"scale it with Kedah":                                                       "scale it with KEDA",
-		"the cat sat on the mat and said okay":                                      "the cat sat on the mat and said okay",
-		"thanks everyone for coming to this talk":                                   "thanks everyone for coming to this talk",
-		"I am playing a guitar, in the country Qatar, and I am using Sonar Guitar.": "I am playing a guitar, in the country Qatar, and I am using Sonar Gitar.",
-		"I am playing a guitar in the country Qitar":                                "I am playing a guitar in the country Qitar",
-		"open a pull request and Gitar reviews it":                                  "open a pull request and Gitar reviews it",
-		"Guitar reviewed my pull request":                                           "Gitar reviewed my pull request",
+		"we route traffic with silly um and hubble":                                      "we route traffic with Cilium and Hubble",
+		"it runs on cooper netties":                                                      "it runs on Kubernetes",
+		"scale it with Kedah":                                                            "scale it with KEDA",
+		"the cat sat on the mat and said okay":                                           "the cat sat on the mat and said okay",
+		"thanks everyone for coming to this talk":                                        "thanks everyone for coming to this talk",
+		"I am playing a guitar, in the country Qatar, and I am using Sonar Guitar.":      "I am playing a guitar, in the country Qatar, and I am using Sonar Gitar.",
+		"I am playing a guitar in the country Qatar and I am using Sonar Guitar":         "I am playing a guitar in the country Qatar and I am using Sonar Gitar",
+		"open a pull request and Gitar reviews it":                                       "open a pull request and Gitar reviews it",
+		"Guitar reviewed my pull request":                                                "Gitar reviewed my pull request",
+		"I play guitar, I traveled to Qatar, and Sonar Guitar reviews my pull requests.": "I play guitar, I traveled to Qatar, and Sonar Gitar reviews my pull requests.",
+		"we set up guitar last week":                                                     "we set up Gitar last week",
+		"Qatar left a comment on line 12":                                                "Gitar left a comment on line 12",
 	}
 	for heard, want := range tests {
 		got, err := vocab.Correct(ctx, heard)
@@ -172,7 +175,7 @@ func TestVocabularySeedKeepsExistingTerms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := vocab.Add(ctx, []Term{{Term: "Helm", Context: []string{"chart"}}}); err != nil {
+	if err := vocab.Add(ctx, []Term{{Term: "Helm", Except: []string{"boat"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := vocab.Seed(ctx, DefaultTerms); err != nil {
@@ -180,7 +183,7 @@ func TestVocabularySeedKeepsExistingTerms(t *testing.T) {
 	}
 
 	for heard, want := range map[string]string{
-		"we install it with helm":        "we install it with helm",
+		"the boat's helm is wooden":      "the boat's helm is wooden",
 		"the helm chart sets it up":      "the Helm chart sets it up",
 		"we route traffic with silly um": "we route traffic with Cilium",
 	} {
@@ -208,7 +211,7 @@ func TestVocabularyListAndRemove(t *testing.T) {
 	if empty, err := vocab.Empty(ctx); err != nil || !empty {
 		t.Fatalf("new vocabulary: empty = %v, err = %v", empty, err)
 	}
-	gitar := Term{Term: "Gitar", Context: []string{"Sonar"}}
+	gitar := Term{Term: "Gitar", Except: []string{"play"}}
 	if err := vocab.Add(ctx, []Term{{Term: "KEDA"}, gitar, {Term: "cosign"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +222,7 @@ func TestVocabularyListAndRemove(t *testing.T) {
 	}
 	want := []Term{{Term: "cosign"}, gitar, {Term: "KEDA"}}
 	if !slices.EqualFunc(got, want, func(a, b Term) bool {
-		return a.Term == b.Term && slices.Equal(a.Context, b.Context)
+		return a.Term == b.Term && slices.Equal(a.Except, b.Except)
 	}) {
 		t.Errorf("List = %+v, want %+v", got, want)
 	}

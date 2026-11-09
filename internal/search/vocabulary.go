@@ -20,12 +20,12 @@ import (
 
 const instrumentation = "github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 
-// Term is a vocabulary entry. A term with Context is only used when one of
-// those words is said near it, for names that sound like everyday words:
-// "Gitar" sounds like "guitar" and "Qatar".
+// Term is a vocabulary entry. A term is not used when one of its Except words
+// is said near it, for names that sound like everyday words: "Gitar" sounds
+// like "guitar" and "Qatar", but "playing a guitar" should stay a guitar.
 type Term struct {
-	Term    string   `json:"term"`
-	Context []string `json:"context,omitempty"`
+	Term   string   `json:"term"`
+	Except []string `json:"except,omitempty"`
 }
 
 // DefaultTerms seeds the vocabulary with cloud native names Whisper tends to
@@ -36,7 +36,10 @@ var DefaultTerms = append(plainTerms(
 	"Grafana", "gRPC", "Helm", "Hubble", "Istio", "Jaeger", "KEDA", "Kibana",
 	"Knative", "KubeCon", "kubectl", "Kubernetes", "Linkerd", "OpenTelemetry",
 	"Prometheus", "Sigstore", "SPIFFE", "Talos", "WebAssembly",
-), Term{Term: "Gitar", Context: []string{"Sonar", "review", "pull request", "merge", "CI"}})
+), Term{Term: "Gitar", Except: []string{
+	"play", "music", "song", "band", "chord", "acoustic", "electric", "bass",
+	"country", "Doha", "Airways", "flight", "travel",
+}})
 
 func plainTerms(names ...string) []Term {
 	terms := make([]Term, len(names))
@@ -67,7 +70,7 @@ func newVocabulary(es *elasticsearch.TypedClient, index string) (*Vocabulary, er
 }
 
 // Add stores terms, keyed by their lowercase form, so adding a term again
-// replaces its context. It waits for a refresh so the terms correct the next
+// replaces its exception words. It waits for a refresh so the terms correct the next
 // request.
 func (v *Vocabulary) Add(ctx context.Context, terms []Term) error {
 	if len(terms) == 0 {
@@ -91,7 +94,7 @@ func (v *Vocabulary) Add(ctx context.Context, terms []Term) error {
 }
 
 // Seed stores the terms that aren't in the vocabulary yet and leaves the rest
-// alone, so starting the api never undoes context words someone set.
+// alone, so starting the api never undoes exception words someone set.
 func (v *Vocabulary) Seed(ctx context.Context, terms []Term) error {
 	bulk := v.es.Bulk().Index(v.index).Refresh(refresh.Waitfor)
 	for _, term := range terms {
@@ -229,15 +232,8 @@ func (v *Vocabulary) soundAlikes(ctx context.Context, lookups []lookup) ([][]str
 }
 
 func soundAlikeQuery(l lookup) map[string]any {
-	hasNoContext := map[string]any{"bool": map[string]any{
-		"must_not": map[string]any{"exists": map[string]any{"field": "context"}},
-	}}
-	contextNearby := map[string]any{"match": map[string]any{"context": l.Window}}
 	return map[string]any{"bool": map[string]any{
-		"must": map[string]any{"match": map[string]any{"term.sound": l.Phrase}},
-		"filter": map[string]any{"bool": map[string]any{
-			"should":               []any{hasNoContext, contextNearby},
-			"minimum_should_match": 1,
-		}},
+		"must":     map[string]any{"match": map[string]any{"term.sound": l.Phrase}},
+		"must_not": map[string]any{"match": map[string]any{"except": l.Window}},
 	}}
 }

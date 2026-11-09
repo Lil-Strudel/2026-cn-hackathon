@@ -44,7 +44,7 @@ export async function correctText(text: string): Promise<Correction> {
 
 export type Term = {
 	term: string;
-	context?: string[];
+	except?: string[];
 };
 
 export async function addTerms(terms: Term[]): Promise<void> {

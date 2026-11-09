@@ -7,7 +7,7 @@ vi.mock("~/lib/api", { spy: true });
 
 beforeEach(() => {
 	vi.mocked(api.listTerms).mockResolvedValue([
-		{ term: "Gitar", context: ["Sonar", "review"] },
+		{ term: "Gitar", except: ["play", "country"] },
 		{ term: "KEDA" },
 	]);
 });
@@ -19,20 +19,20 @@ async function vocabularyList() {
 	return within(heading.closest("[data-slot=card]") as HTMLElement);
 }
 
-test("adds a term with its context words and refreshes the list", async () => {
+test("adds a term with its exception words and refreshes the list", async () => {
 	vi.mocked(api.addTerms).mockResolvedValue();
 	renderRoute("/corrections");
 	const list = await vocabularyList();
 	await list.findByText("KEDA");
 
 	vi.mocked(api.listTerms).mockResolvedValue([
-		{ term: "Ferret", context: ["Linux"] },
+		{ term: "Ferret", except: ["pet"] },
 	]);
 	fireEvent.change(screen.getByLabelText("Term"), {
 		target: { value: " Ferret " },
 	});
-	fireEvent.change(screen.getByLabelText("Context words (optional)"), {
-		target: { value: "Linux, , " },
+	fireEvent.change(screen.getByLabelText("Except near (optional)"), {
+		target: { value: "pet, , " },
 	});
 	fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
@@ -40,23 +40,23 @@ test("adds a term with its context words and refreshes the list", async () => {
 		await screen.findByText("Added. Try it in the box above."),
 	).toBeDefined();
 	expect(api.addTerms).toHaveBeenCalledWith(
-		[{ term: "Ferret", context: ["Linux"] }],
+		[{ term: "Ferret", except: ["pet"] }],
 		expect.anything(),
 	);
-	expect(screen.getByLabelText("Context words (optional)")).toHaveProperty(
+	expect(screen.getByLabelText("Except near (optional)")).toHaveProperty(
 		"value",
 		"",
 	);
 	expect(await list.findByText("Ferret")).toBeDefined();
 });
 
-test("lists terms with their context words", async () => {
+test("lists terms with their exception words", async () => {
 	renderRoute("/corrections");
 	const list = await vocabularyList();
 
 	expect(await list.findByText("Gitar")).toBeDefined();
-	expect(list.getByText("Sonar")).toBeDefined();
-	expect(list.getByText("review")).toBeDefined();
+	expect(list.getByText("play")).toBeDefined();
+	expect(list.getByText("country")).toBeDefined();
 	expect(list.getByRole("button", { name: "Remove KEDA" })).toBeDefined();
 });
 

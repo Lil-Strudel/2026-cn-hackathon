@@ -58,23 +58,23 @@ func TestEnsureIndicesAddsNewFields(t *testing.T) {
 	index := fmt.Sprintf("test-%d-%s", time.Now().UnixNano(), VocabularyIndex)
 	t.Cleanup(func() { _, _ = es.Indices.Delete(index).Do(context.Background()) })
 
-	contextField := `"context":  { "type": "text", "analyzer": "english" },`
-	if !strings.Contains(vocabularyMapping, contextField) {
-		t.Fatal("vocabulary mapping no longer has the context field this test removes")
+	exceptField := `"except":   { "type": "text", "analyzer": "english" },`
+	if !strings.Contains(vocabularyMapping, exceptField) {
+		t.Fatal("vocabulary mapping no longer has the except field this test removes")
 	}
-	before := strings.Replace(vocabularyMapping, contextField, "", 1)
+	before := strings.Replace(vocabularyMapping, exceptField, "", 1)
 	if _, err := es.Indices.Create(index).Raw(strings.NewReader(before)).Do(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := addFields(ctx, es, index, vocabularyMapping); err != nil {
 		t.Fatal(err)
 	}
-	res, err := es.Indices.GetFieldMapping("context").Index(index).Do(ctx)
+	res, err := es.Indices.GetFieldMapping("except").Index(index).Do(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res[index].Mappings) == 0 {
-		t.Errorf("context field was not added to %s", index)
+		t.Errorf("except field was not added to %s", index)
 	}
 }
 
