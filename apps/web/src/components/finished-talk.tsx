@@ -9,10 +9,16 @@ import { formatClock } from "~/lib/format";
 import { fetchNotes } from "~/lib/talks";
 import { groupTranscript, lineAnchor } from "~/lib/transcript";
 
+const notesPollMs = 15_000;
+
 export function FinishedTalk({ talkId }: { talkId: string }) {
 	const notes = useQuery({
 		queryKey: ["notes", talkId],
 		queryFn: () => fetchNotes(talkId),
+		// The api writes notes once the captions have been quiet for a minute,
+		// so keep asking until they exist.
+		refetchInterval: (query) =>
+			query.state.data?.summary === null ? notesPollMs : false,
 	});
 
 	return (

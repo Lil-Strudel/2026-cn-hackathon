@@ -23,7 +23,10 @@ const talksMapping = `{
     "properties": {
       "title":    { "type": "text", "analyzer": "english" },
       "abstract": { "type": "text", "analyzer": "english" },
-      "speakers": { "type": "keyword" }
+      "speakers": { "type": "keyword" },
+      "summary":  { "type": "text", "analyzer": "english" },
+      "notes":    { "type": "text", "analyzer": "english" },
+      "notes_written_at": { "type": "date" }
     }
   }
 }`

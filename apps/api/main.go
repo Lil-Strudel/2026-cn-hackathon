@@ -16,6 +16,7 @@ import (
 
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/config"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/httpserver"
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/notes"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/telemetry"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/transcribe"
@@ -28,6 +29,7 @@ type Config struct {
 	ElasticsearchUsername string `env:"ELASTICSEARCH_USERNAME"`
 	ElasticsearchPassword string `env:"ELASTICSEARCH_PASSWORD"`
 	OpenAIAPIKey          string `env:"OPENAI_API_KEY"`
+	OpenAINotesModel      string `env:"OPENAI_NOTES_MODEL" envDefault:"gpt-5-mini"`
 }
 
 func main() {
@@ -97,6 +99,17 @@ func run() error {
 	}
 	mux := newMux(rdb, es, vocab, history)
 	mux.Handle("GET /api/talks/{talkID}/audio", audio)
+
+	talkNotes := &talkNotes{history: history, store: search.NewTalkNotes(es), now: time.Now}
+	if cfg.OpenAIAPIKey != "" {
+		writer, err := notes.NewOpenAI(cfg.OpenAIAPIKey, cfg.OpenAINotesModel)
+		if err != nil {
+			return fmt.Errorf("notes writer: %w", err)
+		}
+		talkNotes.writer = writer
+	}
+	mux.HandleFunc("GET /api/talks/{talkID}/notes", talkNotes.handleGet)
+	mux.HandleFunc("POST /api/talks/{talkID}/notes", talkNotes.handleRewrite)
 
 	err = httpserver.Run(ctx, fmt.Sprintf(":%d", cfg.Port), mux)
 	waitCtx, cancel := context.WithTimeout(context.Background(), drainTimeout+time.Second)

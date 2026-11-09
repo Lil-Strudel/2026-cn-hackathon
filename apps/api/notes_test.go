@@ -1,0 +1,196 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/captions"
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/notes"
+)
+
+var now = time.Date(2026, 11, 9, 15, 0, 0, 0, time.UTC)
+
+type transcriptHistory []captions.Caption
+
+func (f transcriptHistory) History(context.Context, string) ([]captions.Caption, error) {
+	return f, nil
+}
+
+type fakeNotesStore struct {
+	mu    sync.Mutex
+	saved map[string]notes.Notes
+}
+
+func (f *fakeNotesStore) Get(_ context.Context, talkID string) (*notes.Notes, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if n, ok := f.saved[talkID]; ok {
+		return &n, nil
+	}
+	return nil, nil
+}
+
+func (f *fakeNotesStore) Store(_ context.Context, talkID string, n notes.Notes) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.saved == nil {
+		f.saved = map[string]notes.Notes{}
+	}
+	f.saved[talkID] = n
+	return nil
+}
+
+type fakeWriter struct {
+	calls   atomic.Int32
+	release chan struct{}
+	err     error
+}
+
+func (f *fakeWriter) Write(context.Context, string) (notes.Notes, error) {
+	f.calls.Add(1)
+	if f.release != nil {
+		<-f.release
+	}
+	if f.err != nil {
+		return notes.Notes{}, f.err
+	}
+	return notes.Notes{Summary: "About Cilium.", Notes: []string{"eBPF routes traffic"}}, nil
+}
+
+// talk returns a transcript of the given length whose last line was said ago.
+func talk(words int, ago time.Duration) transcriptHistory {
+	return transcriptHistory{{
+		TalkID: "keynote",
+		At:     captions.FormatTime(now.Add(-ago)),
+		Text:   strings.TrimSpace(strings.Repeat("word ", words)),
+	}}
+}
+
+func serveNotes(t *testing.T, tn *talkNotes, method, talkID string) (int, notesBody) {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/talks/{talkID}/notes", tn.handleGet)
+	mux.HandleFunc("POST /api/talks/{talkID}/notes", tn.handleRewrite)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, "/api/talks/"+talkID+"/notes", nil))
+	var body notesBody
+	if rec.Code == http.StatusOK {
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return rec.Code, body
+}
+
+func TestNotesWrittenOnceAndStored(t *testing.T) {
+	writer := &fakeWriter{}
+	store := &fakeNotesStore{}
+	tn := &talkNotes{history: talk(100, time.Hour), store: store, writer: writer, now: func() time.Time { return now }}
+
+	for range 2 {
+		code, body := serveNotes(t, tn, http.MethodGet, "keynote")
+		if code != http.StatusOK || body.Summary == nil || *body.Summary != "About Cilium." || len(body.Notes) != 1 {
+			t.Fatalf("code = %d, body = %+v", code, body)
+		}
+	}
+	if got := writer.calls.Load(); got != 1 {
+		t.Errorf("writer called %d times, want 1", got)
+	}
+	if _, ok := store.saved["keynote"]; !ok {
+		t.Error("notes were not stored")
+	}
+}
+
+func TestNotesNotWritten(t *testing.T) {
+	tests := []struct {
+		name    string
+		history transcriptHistory
+		writer  bool
+	}{
+		{"without an OpenAI key", talk(100, time.Hour), false},
+		{"for a short transcript", talk(minTranscriptWords-1, time.Hour), true},
+		{"while captions are still arriving", talk(100, 10*time.Second), true},
+		{"without captions", transcriptHistory{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writer := &fakeWriter{}
+			tn := &talkNotes{history: tt.history, store: &fakeNotesStore{}, now: func() time.Time { return now }}
+			if tt.writer {
+				tn.writer = writer
+			}
+			code, body := serveNotes(t, tn, http.MethodGet, "keynote")
+			if code != http.StatusOK || body.Summary != nil || body.Notes != nil {
+				t.Errorf("code = %d, body = %+v, want nulls", code, body)
+			}
+			if writer.calls.Load() != 0 {
+				t.Error("writer was called")
+			}
+		})
+	}
+}
+
+func TestRewriteIgnoresQuietPeriod(t *testing.T) {
+	writer := &fakeWriter{}
+	store := &fakeNotesStore{saved: map[string]notes.Notes{"keynote": {Summary: "old"}}}
+	tn := &talkNotes{history: talk(100, 10*time.Second), store: store, writer: writer, now: func() time.Time { return now }}
+
+	code, body := serveNotes(t, tn, http.MethodPost, "keynote")
+	if code != http.StatusOK || body.Summary == nil || *body.Summary != "About Cilium." {
+		t.Fatalf("code = %d, body = %+v", code, body)
+	}
+	if store.saved["keynote"].Summary != "About Cilium." {
+		t.Error("rewritten notes were not stored")
+	}
+}
+
+func TestConcurrentViewersShareOneWrite(t *testing.T) {
+	writer := &fakeWriter{release: make(chan struct{})}
+	tn := &talkNotes{history: talk(100, time.Hour), store: &fakeNotesStore{}, writer: writer, now: func() time.Time { return now }}
+
+	var wg sync.WaitGroup
+	for range 3 {
+		wg.Go(func() {
+			if code, _ := serveNotes(t, tn, http.MethodGet, "keynote"); code != http.StatusOK {
+				t.Errorf("code = %d", code)
+			}
+		})
+	}
+	for writer.calls.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(20 * time.Millisecond)
+	close(writer.release)
+	wg.Wait()
+	if got := writer.calls.Load(); got != 1 {
+		t.Errorf("writer called %d times, want 1", got)
+	}
+}
+
+func TestNotesErrors(t *testing.T) {
+	failing := &fakeWriter{err: errors.New("openai down")}
+	tn := &talkNotes{history: talk(100, time.Hour), store: &fakeNotesStore{}, writer: failing, now: func() time.Time { return now }}
+	if code, _ := serveNotes(t, tn, http.MethodGet, "keynote"); code != http.StatusBadGateway {
+		t.Errorf("writer failure: code = %d, want 502", code)
+	}
+	if code, _ := serveNotes(t, tn, http.MethodGet, "Not_A_Talk"); code != http.StatusNotFound {
+		t.Errorf("invalid talk id: code = %d, want 404", code)
+	}
+	tn.writer = nil
+	if code, _ := serveNotes(t, tn, http.MethodPost, "keynote"); code != http.StatusServiceUnavailable {
+		t.Errorf("rewrite without a key: code = %d, want 503", code)
+	}
+	tn.history = talk(maxTranscriptBytes/5+1, time.Hour)
+	tn.writer = &fakeWriter{}
+	if code, _ := serveNotes(t, tn, http.MethodPost, "keynote"); code != http.StatusUnprocessableEntity {
+		t.Errorf("transcript too long: code = %d, want 422", code)
+	}
+}
