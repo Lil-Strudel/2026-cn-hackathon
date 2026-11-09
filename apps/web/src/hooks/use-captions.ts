@@ -16,6 +16,8 @@ export function useCaptions(talkId: string) {
 	const history = useQuery({
 		queryKey: ["captions", talkId],
 		queryFn: () => fetchCaptions(talkId),
+		staleTime: Number.POSITIVE_INFINITY,
+		refetchOnWindowFocus: false,
 	});
 	const [live, setLive] = useState<CaptionLine[]>([]);
 	const [status, setStatus] = useState<StreamStatus>("connecting");

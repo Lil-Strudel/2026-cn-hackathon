@@ -14,6 +14,7 @@ const statusText = {
 	connecting: "Connecting to the captions…",
 	open: null,
 	reconnecting: "Connection lost. Reconnecting…",
+	closed: "Connection closed.",
 };
 
 export function LiveCaptions({ talkId }: { talkId: string }) {
@@ -33,8 +34,12 @@ export function LiveCaptions({ talkId }: { talkId: string }) {
 			</div>
 
 			<p role="status" className="text-sm text-muted-foreground empty:hidden">
-				{statusText[status]}
-				{historyError && "Earlier captions couldn't be loaded."}
+				{[
+					statusText[status],
+					historyError && "Earlier captions couldn't be loaded.",
+				]
+					.filter(Boolean)
+					.join(" ")}
 			</p>
 
 			{view === "transcript" ? (

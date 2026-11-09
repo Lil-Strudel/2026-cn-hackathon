@@ -57,7 +57,7 @@ export async function fetchCaptions(talkId: string): Promise<CaptionLine[]> {
 	return res.json();
 }
 
-export type StreamStatus = "connecting" | "open" | "reconnecting";
+export type StreamStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 export function subscribeCaptions(
 	talkId: string,
@@ -81,7 +81,10 @@ export function subscribeCaptions(
 	const source = new EventSource(`/events/talks/${encodeURIComponent(talkId)}`);
 	source.onopen = () => onStatus("open");
 	// EventSource retries on its own; this only tells the reader it is doing so.
-	source.onerror = () => onStatus("reconnecting");
+	source.onerror = () => {
+		if (source.readyState === EventSource.CLOSED) onStatus("closed");
+		else onStatus("reconnecting");
+	};
 	source.addEventListener("caption", (event) => onLine(JSON.parse(event.data)));
 	return () => source.close();
 }
