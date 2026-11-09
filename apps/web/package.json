@@ -11,6 +11,8 @@
 	},
 	"dependencies": {
 		"@dash0/sdk-web": "catalog:",
+		"@fontsource-variable/lexend": "catalog:",
+		"@fontsource-variable/red-hat-mono": "catalog:",
 		"@tanstack/react-query": "catalog:",
 		"@tanstack/react-router": "catalog:",
 		"class-variance-authority": "catalog:",
