@@ -21,10 +21,12 @@ const (
 const talksMapping = `{
   "mappings": {
     "properties": {
-      "title":    { "type": "text", "analyzer": "english" },
-      "abstract": { "type": "text", "analyzer": "english" },
-      "speakers": { "type": "keyword" },
-      "summary":  { "type": "text", "analyzer": "english" },
+      "title":       { "type": "text", "analyzer": "english" },
+      "description": { "type": "text", "analyzer": "english" },
+      "speaker":     { "type": "text" },
+      "started_at":  { "type": "date" },
+      "ended_at":    { "type": "date" },
+      "summary":     { "type": "text", "analyzer": "english" },
       "notes":    { "type": "text", "analyzer": "english" },
       "notes_written_at": { "type": "date" }
     }
