@@ -157,13 +157,16 @@ export function search(query: string): SearchHit[] {
 	const pattern = new RegExp(escapeRegExp(query.trim()), "gi");
 	return talks.flatMap((talk) => {
 		const { summary, notes } = notesFor(talk.id);
-		const transcriptHits = transcript(talk.id, talk.startedAt)
-			.map((line) => {
-				const hit = highlight("transcript", line.text, pattern);
-				return hit && { ...hit, lineId: line.id, at: line.at };
-			})
-			.filter((h) => h !== null)
-			.slice(0, transcriptHitsPerTalk);
+		const transcriptHits =
+			talk.status !== "finished"
+				? []
+				: transcript(talk.id, talk.startedAt)
+						.map((line) => {
+							const hit = highlight("transcript", line.text, pattern);
+							return hit && { ...hit, lineId: line.id, at: line.at };
+						})
+						.filter((h) => h !== null)
+						.slice(0, transcriptHitsPerTalk);
 		const highlights = [
 			highlight("title", talk.title, pattern),
 			highlight("description", talk.description, pattern),
