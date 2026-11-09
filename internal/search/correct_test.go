@@ -193,3 +193,52 @@ func TestVocabularySeedKeepsExistingTerms(t *testing.T) {
 		}
 	}
 }
+
+func TestVocabularyListAndRemove(t *testing.T) {
+	es, ctx := testClient(t)
+	prefix := fmt.Sprintf("test-%d-", time.Now().UnixNano())
+	t.Cleanup(func() { _, _ = es.Indices.Delete(prefix + "*").Do(context.Background()) })
+	if err := ensureIndices(ctx, es, prefix); err != nil {
+		t.Fatal(err)
+	}
+	vocab, err := newVocabulary(es, prefix+VocabularyIndex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty, err := vocab.Empty(ctx); err != nil || !empty {
+		t.Fatalf("new vocabulary: empty = %v, err = %v", empty, err)
+	}
+	gitar := Term{Term: "Gitar", Context: []string{"Sonar"}}
+	if err := vocab.Add(ctx, []Term{{Term: "KEDA"}, gitar, {Term: "cosign"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := vocab.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Term{{Term: "cosign"}, gitar, {Term: "KEDA"}}
+	if !slices.EqualFunc(got, want, func(a, b Term) bool {
+		return a.Term == b.Term && slices.Equal(a.Context, b.Context)
+	}) {
+		t.Errorf("List = %+v, want %+v", got, want)
+	}
+
+	if empty, err := vocab.Empty(ctx); err != nil || empty {
+		t.Fatalf("vocabulary with terms: empty = %v, err = %v", empty, err)
+	}
+
+	if err := vocab.Remove(ctx, "keda"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vocab.Remove(ctx, "KEDA"); err != nil {
+		t.Errorf("removing a missing term: %v", err)
+	}
+	c, err := vocab.Correct(ctx, "scale it with Kedah")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Text != "scale it with Kedah" {
+		t.Errorf("Correct after removing KEDA = %q", c.Text)
+	}
+}

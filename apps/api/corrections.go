@@ -83,6 +83,34 @@ func handleAddTerms(vocab *search.Vocabulary) http.HandlerFunc {
 	}
 }
 
+func handleListTerms(vocab *search.Vocabulary) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		terms, err := vocab.List(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "list terms", "err", err)
+			http.Error(w, "listing terms failed", http.StatusBadGateway)
+			return
+		}
+		httpserver.WriteJSON(w, http.StatusOK, map[string]any{"terms": terms})
+	}
+}
+
+func handleRemoveTerm(vocab *search.Vocabulary) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		term := strings.TrimSpace(r.PathValue("term"))
+		if term == "" || len(term) > maxTermBytes {
+			http.Error(w, "a term is between 1 and 64 bytes", http.StatusBadRequest)
+			return
+		}
+		if err := vocab.Remove(r.Context(), term); err != nil {
+			slog.ErrorContext(r.Context(), "remove term", "err", err)
+			http.Error(w, "removing the term failed", http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func cleanTerm(t search.Term) (search.Term, bool) {
 	clean := search.Term{Term: strings.TrimSpace(t.Term)}
 	for _, word := range t.Context {

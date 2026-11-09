@@ -20,21 +20,26 @@ export type Correction = {
 	segments: Segment[];
 };
 
-async function post(path: string, body: unknown): Promise<Response> {
+async function request(
+	method: string,
+	path: string,
+	body?: unknown,
+): Promise<Response> {
 	const res = await fetch(path, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
+		method,
+		headers:
+			body === undefined ? undefined : { "Content-Type": "application/json" },
+		body: body === undefined ? undefined : JSON.stringify(body),
 	});
 	if (!res.ok) {
 		const reason = (await res.text()).trim() || res.statusText;
-		throw new Error(`POST ${path}: ${reason}`);
+		throw new Error(`${method} ${path}: ${reason}`);
 	}
 	return res;
 }
 
 export async function correctText(text: string): Promise<Correction> {
-	return (await post("/api/corrections", { text })).json();
+	return (await request("POST", "/api/corrections", { text })).json();
 }
 
 export type Term = {
@@ -43,5 +48,16 @@ export type Term = {
 };
 
 export async function addTerms(terms: Term[]): Promise<void> {
-	await post("/api/vocabulary", { terms });
+	await request("POST", "/api/vocabulary", { terms });
+}
+
+export async function listTerms(): Promise<Term[]> {
+	const { terms }: { terms: Term[] } = await (
+		await request("GET", "/api/vocabulary")
+	).json();
+	return terms;
+}
+
+export async function removeTerm(term: string): Promise<void> {
+	await request("DELETE", `/api/vocabulary/${encodeURIComponent(term)}`);
 }
