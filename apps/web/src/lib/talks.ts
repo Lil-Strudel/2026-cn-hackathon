@@ -70,3 +70,10 @@ export async function createTalk(talk: NewTalk): Promise<Talk> {
 	if (!res.ok) throw new Error(`POST /api/talks: ${res.status}`);
 	return res.json();
 }
+
+export async function endTalk(id: string): Promise<Talk> {
+	const path = `/api/talks/${encodeURIComponent(id)}/end`;
+	const res = await fetch(path, { method: "POST" });
+	if (!res.ok) throw new Error(`POST ${path}: ${res.status}`);
+	return res.json();
+}

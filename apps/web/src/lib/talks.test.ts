@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { createTalk, fetchTalks, searchTalks } from "./talks";
+import { createTalk, endTalk, fetchTalks, searchTalks } from "./talks";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -39,4 +39,14 @@ test("a failed create reports the status", async () => {
 	await expect(
 		createTalk({ title: "", speaker: "Aaron", description: "" }),
 	).rejects.toThrow("POST /api/talks: 400");
+});
+
+test("a talk is ended on the server, so it is past for everyone", async () => {
+	const ended = { id: "guitar-demo", status: "finished" };
+	const fetch = stubFetch(ended);
+
+	await expect(endTalk("guitar-demo")).resolves.toEqual(ended);
+	expect(fetch).toHaveBeenCalledWith("/api/talks/guitar-demo/end", {
+		method: "POST",
+	});
 });

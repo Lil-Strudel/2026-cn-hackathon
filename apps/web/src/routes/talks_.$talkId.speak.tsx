@@ -4,6 +4,7 @@ import { ArrowLeft, Mic, MicOff } from "lucide-react";
 import { LiveBadge } from "~/components/live-badge";
 import { LiveCaptions } from "~/components/live-captions";
 import { Button } from "~/components/ui/button";
+import { useCaptions } from "~/hooks/use-captions";
 import { useSpeaker } from "~/hooks/use-speaker";
 import { fetchTalk } from "~/lib/talks";
 
@@ -64,6 +65,7 @@ function SpeakPage() {
 
 function SpeakerControls({ talkId }: { talkId: string }) {
 	const speaker = useSpeaker(talkId);
+	const captions = useCaptions(talkId);
 	const on = speaker.status === "live";
 
 	return (
@@ -89,7 +91,7 @@ function SpeakerControls({ talkId }: { talkId: string }) {
 					</p>
 				)}
 			</div>
-			<LiveCaptions talkId={talkId} />
+			<LiveCaptions captions={captions} />
 		</>
 	);
 }

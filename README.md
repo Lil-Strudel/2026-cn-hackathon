@@ -57,7 +57,8 @@ page starts a live talk that everyone can open, and opens it for captioning; on 
 "Caption this talk" does the same. Allow the microphone, and everyone on the talk page sees the
 captions as you speak, while people who join later get the earlier lines too. Captions are
 always real unless you set `VITE_CAPTION_FIXTURES=true`, which plays simulated captions for a
-demo without a speaker.
+demo without a speaker. Once the talk has captions, "End talk" next to "Caption this talk" makes
+it a past talk for everyone and starts writing its summary and notes from the transcript.
 
 The app runs at http://localhost:4000. Vite proxies `/api` to the api on `:4100` and `/events`
 to fanout on `:4200`. `pnpm dev:down` stops everything. Kibana is available as the

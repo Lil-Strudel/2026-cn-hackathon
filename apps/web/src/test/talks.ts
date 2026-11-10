@@ -44,4 +44,15 @@ export function mockTalksApi(stored: Talk[] = [liveTalk, finishedTalk]) {
 		all.unshift(talk);
 		return talk;
 	});
+	vi.mocked(talks.endTalk).mockImplementation(async (id) => {
+		const talk = all.find((t) => t.id === id);
+		if (!talk) throw new Error(`POST /api/talks/${id}/end: 404`);
+		const ended: Talk = {
+			...talk,
+			status: "finished",
+			endedAt: talk.endedAt ?? new Date().toISOString(),
+		};
+		all.splice(all.indexOf(talk), 1, ended);
+		return ended;
+	});
 }

@@ -52,6 +52,12 @@ func TestCaptionHistoryIsOrderedAndScopedToTheTalk(t *testing.T) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
 	}
 
+	for talkID, want := range map[string]int64{"demo": 2, "other": 1, "nobody": 0} {
+		if got, err := store.Count(ctx, talkID); err != nil || got != want {
+			t.Errorf("Count(%q) = %d, %v, want %d", talkID, got, err, want)
+		}
+	}
+
 	none, err := store.History(ctx, "nobody")
 	if err != nil {
 		t.Fatal(err)

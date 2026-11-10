@@ -26,6 +26,7 @@ type talkStore interface {
 	List(ctx context.Context) ([]search.Talk, error)
 	Get(ctx context.Context, id string) (*search.Talk, error)
 	Create(ctx context.Context, n search.NewTalk) (search.Talk, error)
+	End(ctx context.Context, id string) (*search.Talk, error)
 	Search(ctx context.Context, query string) ([]search.SearchHit, error)
 }
 
@@ -85,6 +86,58 @@ func handleCreateTalk(talks talkStore) http.HandlerFunc {
 		}
 		slog.InfoContext(r.Context(), "talk created", "talk_id", talk.ID)
 		httpserver.WriteJSON(w, http.StatusCreated, talk)
+	}
+}
+
+type captionCounter interface {
+	Count(ctx context.Context, talkID string) (int64, error)
+}
+
+// handleEndTalk ends a live talk that has captions and calls ended, which
+// writes its notes. A talk with nothing captioned stays live, because a past
+// talk with an empty transcript and no notes helps nobody.
+func handleEndTalk(talks talkStore, lines captionCounter, ended func(ctx context.Context, talkID string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		talkID := r.PathValue("talkID")
+		if !captions.ValidTalkID(talkID) {
+			http.Error(w, "talk not found", http.StatusNotFound)
+			return
+		}
+		talk, err := talks.Get(r.Context(), talkID)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "get talk to end", "talk_id", talkID, "err", err)
+			http.Error(w, "ending the talk failed", http.StatusBadGateway)
+			return
+		}
+		if talk == nil {
+			http.Error(w, "talk not found", http.StatusNotFound)
+			return
+		}
+		if talk.Status == search.TalkLive {
+			count, err := lines.Count(r.Context(), talkID)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "count captions", "talk_id", talkID, "err", err)
+				http.Error(w, "ending the talk failed", http.StatusBadGateway)
+				return
+			}
+			if count == 0 {
+				http.Error(w, "a talk can only end once it has captions", http.StatusConflict)
+				return
+			}
+		}
+		talk, err = talks.End(r.Context(), talkID)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "end talk", "talk_id", talkID, "err", err)
+			http.Error(w, "ending the talk failed", http.StatusBadGateway)
+			return
+		}
+		if talk == nil {
+			http.Error(w, "talk not found", http.StatusNotFound)
+			return
+		}
+		slog.InfoContext(r.Context(), "talk ended", "talk_id", talk.ID)
+		ended(r.Context(), talk.ID)
+		httpserver.WriteJSON(w, http.StatusOK, talk)
 	}
 }
 

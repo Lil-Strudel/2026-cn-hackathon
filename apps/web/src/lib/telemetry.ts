@@ -86,6 +86,14 @@ export function recordTalkCreated(talkId: string) {
 	});
 }
 
+export function recordTalkEnded(talkId: string) {
+	if (!enabled) return;
+	sendEvent("talk.ended", {
+		title: "Talk ended",
+		attributes: { "app.talk.id": talkId },
+	});
+}
+
 export type SpeakerEvent = "started" | "stopped" | "failed";
 
 export function recordSpeaker(

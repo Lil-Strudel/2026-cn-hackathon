@@ -13,6 +13,7 @@ import (
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/captions"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/httpserver"
 	"github.com/Lil-Strudel/2026-cn-hackathon/internal/notes"
+	"github.com/Lil-Strudel/2026-cn-hackathon/internal/search"
 )
 
 const (
@@ -20,11 +21,7 @@ const (
 	minTranscriptWords = 30
 	// About five hours of speech, far more than a talk.
 	maxTranscriptBytes = 300_000
-	// Notes are only written unasked once the captions have gone quiet, so a
-	// talk that is still going doesn't get notes on its first half that then
-	// stick. POST writes them at once.
-	quietBeforeNotes = time.Minute
-	writeTimeout     = 2 * time.Minute
+	writeTimeout       = 2 * time.Minute
 )
 
 var errTranscriptTooLong = errors.New("transcript is too long to summarise")
@@ -34,12 +31,16 @@ type notesStore interface {
 	Store(ctx context.Context, talkID string, n notes.Notes) error
 }
 
+type talkLookup interface {
+	Get(ctx context.Context, id string) (*search.Talk, error)
+}
+
 type talkNotes struct {
 	history captionHistory
 	store   notesStore
+	talks   talkLookup
 	// writer is nil without an OpenAI key; notes then stay unwritten.
 	writer   notes.Writer
-	now      func() time.Time
 	inflight singleflight.Group
 }
 
@@ -76,7 +77,33 @@ func (t *talkNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		httpserver.WriteJSON(w, http.StatusOK, bodyOf(stored))
 		return
 	}
+	// A live talk gets no notes yet, or they would cover only its first half.
+	// Ending a talk starts its notes; this writes them again only if that
+	// write failed or the api restarted during it.
+	talk, err := t.talks.Get(r.Context(), talkID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "get talk for notes", "talk_id", talkID, "err", err)
+		http.Error(w, "notes unavailable", http.StatusBadGateway)
+		return
+	}
+	if talk == nil || talk.Status != search.TalkFinished {
+		httpserver.WriteJSON(w, http.StatusOK, bodyOf(nil))
+		return
+	}
 	t.respond(w, r, talkID, false)
+}
+
+// start writes a just-ended talk's notes in the background, so they are ready,
+// or already being written, when viewers of the finished talk ask for them.
+func (t *talkNotes) start(ctx context.Context, talkID string) {
+	if t.writer == nil {
+		return
+	}
+	go func() {
+		if _, err := t.write(ctx, talkID, false); err != nil {
+			slog.ErrorContext(ctx, "write notes", "talk_id", talkID, "err", err)
+		}
+	}()
 }
 
 func (t *talkNotes) handleRewrite(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +134,9 @@ func (t *talkNotes) respond(w http.ResponseWriter, r *http.Request, talkID strin
 }
 
 // write returns nil notes, without calling the LLM, when the transcript is too
-// short or, unless forced, the talk may still be going. Concurrent calls for
-// one talk share a single LLM request, which outlives a viewer who leaves.
+// short. Unless forced, it returns notes already stored instead of writing
+// them again. Concurrent calls for one talk share a single LLM request, which
+// outlives the request that started it.
 func (t *talkNotes) write(ctx context.Context, talkID string, force bool) (*notes.Notes, error) {
 	key := talkID
 	if force {
@@ -118,12 +146,15 @@ func (t *talkNotes) write(ctx context.Context, talkID string, force bool) (*note
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), writeTimeout)
 		defer cancel()
 
+		if !force {
+			stored, err := t.store.Get(ctx, talkID)
+			if err != nil || stored != nil {
+				return stored, err
+			}
+		}
 		lines, err := t.history.History(ctx, talkID)
 		if err != nil {
 			return (*notes.Notes)(nil), err
-		}
-		if !force && t.mayStillBeGoing(lines) {
-			return (*notes.Notes)(nil), nil
 		}
 		transcript := transcriptOf(lines)
 		if len(strings.Fields(transcript)) < minTranscriptWords {
@@ -143,14 +174,6 @@ func (t *talkNotes) write(ctx context.Context, talkID string, force bool) (*note
 		return &n, nil
 	})
 	return v.(*notes.Notes), err
-}
-
-func (t *talkNotes) mayStillBeGoing(lines []captions.Caption) bool {
-	if len(lines) == 0 {
-		return false
-	}
-	last, err := time.Parse(time.RFC3339, lines[len(lines)-1].At)
-	return err == nil && t.now().Sub(last) < quietBeforeNotes
 }
 
 func transcriptOf(lines []captions.Caption) string {
